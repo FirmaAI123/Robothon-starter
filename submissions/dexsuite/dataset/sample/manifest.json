@@ -1,0 +1,48 @@
+{
+  "episodes": [
+    {
+      "file": "episode_000.npz",
+      "seed": 0,
+      "frames": 676,
+      "success_rate": 1.0,
+      "stages": {
+        "grasp_cube": true,
+        "reorient_cube": true,
+        "place_cube": true,
+        "grasp_ball": true,
+        "reorient_ball": true,
+        "place_ball": true,
+        "press_button": true
+      }
+    },
+    {
+      "file": "episode_001.npz",
+      "seed": 1,
+      "frames": 676,
+      "success_rate": 1.0,
+      "stages": {
+        "grasp_cube": true,
+        "reorient_cube": true,
+        "place_cube": true,
+        "grasp_ball": true,
+        "reorient_ball": true,
+        "place_ball": true,
+        "press_button": true
+      }
+    }
+  ],
+  "stride": 20,
+  "with_images": true,
+  "fields": [
+    "action",
+    "ball_pose",
+    "cube_pose",
+    "finger_qpos",
+    "imu",
+    "time",
+    "touch",
+    "wrist_ft",
+    "wrist_qpos",
+    "wrist_rgb"
+  ]
+}

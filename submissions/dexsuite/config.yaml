@@ -1,0 +1,30 @@
+# DexSuite configuration. Consumed by run.py via dexsuite/config.py.
+
+env:
+  seed: 0
+  render_w: 1280
+  render_h: 720
+
+# Motion-primitive timing / heights (metres, simulation steps). These were tuned
+# against the LEAP model physics; see dexsuite/skills.py for their meaning.
+skills:
+  approach_z: 0.06
+  grasp_z: 0.00
+  lift_z: 0.16
+  move_steps: 350
+  close_steps: 500
+  open_steps: 1600
+  settle_steps: 250
+
+record:
+  out: demo.mp4
+  fps: 30
+  capture_every: 7      # sim steps between captured frames
+
+collect:
+  out_dir: dataset
+  episodes: 5
+  stride: 10
+  with_images: true
+  pos_jitter: 0.004     # metres of XY randomization on parts
+  mass_jitter: 0.15     # fractional mass randomization
