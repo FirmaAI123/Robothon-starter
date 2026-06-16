@@ -126,7 +126,7 @@ class Hand:
         deg = float(_np.degrees(2 * _np.arccos(min(1.0, abs(float(_np.dot(q0, qp)))))))
         return deg, held
 
-    def inhand_spin(self, obj_name, cycles=8, amp=0.30, closure=0.85):
+    def inhand_spin(self, obj_name, cycles=8, amp=0.30, closure=0.85, resecure=True):
         """True finger-gaiting in-hand manipulation: with the **wrist held fixed**,
         oscillate the fingers against the thumb to roll the grasped object about an
         in-hand axis. Returns (net_rotation_degrees, still_held)."""
@@ -148,13 +148,18 @@ class Hand:
                 self.env.step(3)
         q1 = self.env.object_pose(obj_name)[3:].copy()
         deg = _relative_angle_deg(q0, q1)
-        # re-secure: firmly close around the (now-rolled) object so the downstream
-        # transport/place stays reliable.
-        for i in range(300):
-            self.env.set_finger_targets(grasp_pose(1.0))
-            self.env.set_wrist_target(t)
-            self.env.step(1)
-        self._closure = 1.0
+        if resecure:
+            # firmly close around the (now-rolled) object so downstream transport
+            # stays reliable. (Ablation in evaluate.py shows this is load-bearing.)
+            for i in range(300):
+                self.env.set_finger_targets(grasp_pose(1.0))
+                self.env.set_wrist_target(t)
+                self.env.step(1)
+            self._closure = 1.0
+        else:
+            self.env.set_finger_targets(base)
+            self._closure = closure
+            self.env.step(200)
         held = self.env.object_pose(obj_name)[2] > 0.55
         return deg, held
 

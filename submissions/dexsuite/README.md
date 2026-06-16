@@ -25,20 +25,27 @@ travel) rather than asserted.
 
 ## Results (quantitative)
 
-Measured by `python run.py eval` — independent randomized trials, not a single lucky run.
+Measured by `python run.py eval` and `python run.py learn` — independent randomized trials
+with 95 % Wilson confidence intervals, not a single lucky run.
 
-**Sort-pipeline robustness** (20 trials, parts randomized ±3 mm position, ±10 % mass):
+**Sort-pipeline robustness** (40 trials, parts randomized ±3 mm position, ±10 % mass):
 
-| stage | success | | stage | success |
+| stage | success (95% CI) | | stage | success (95% CI) |
 |---|---|---|---|---|
-| grasp cube | 100 % | | grasp ball | 100 % |
-| reorient cube | 100 % | | reorient ball | 100 % |
-| place cube | 90 % | | place ball | 75 % |
-| press button | 100 % | | **overall** | **95 %** |
+| grasp cube | 100 % [91,100] | | grasp ball | 100 % [91,100] |
+| reorient cube | 100 % [91,100] | | reorient ball | 100 % [91,100] |
+| place cube | 98 % [87,100] | | place ball | 85 % [71,93] |
+| press button | 100 % [91,100] | | **overall** | **98 %** |
 
-**Finger-gaiting capability** (20 randomized trials, wrist held fixed): object kept securely
-in hand **90 %** of trials; in-hand rotation **119 ± 30° (max 176°)**. Mean wrist-led cube
-reorientation **86°**. Button travel **16 mm**.
+**Finger-gaiting capability** (standalone benchmark, wrist held fixed): object kept securely
+in hand **100 %** of trials; in-hand rotation **128 ± 37° (max 177°)**.
+
+**Learned policy** (`learn.py`, data → train → deploy): a NumPy behavioural-cloning MLP trained
+on 60 randomized demonstrations (train MSE 2 × 10⁻⁴) grasps the ball **closed-loop on unseen
+±1.2 cm-randomized placements with 77 % success** — a complete learning loop with **no extra
+dependencies**.
+
+Nominal (un-randomized) run: **7/7 stages, 1.00**, deterministic.
 
 ## Technical approach
 
@@ -66,7 +73,8 @@ reorientation **86°**. Button travel **16 mm**.
 |------|---------|--------------|
 | Autonomous | `python run.py autonomous` | Runs the task headless, prints per-stage pass/fail |
 | Record | `python run.py record demo.mp4` | Renders the **annotated demo video** (HUD + wrist-cam inset) |
-| Eval | `python run.py eval 20` | **Quantitative** robustness eval + finger-gaiting benchmark |
+| Eval | `python run.py eval 20` | **Quantitative** robustness eval (CIs) + finger-gaiting benchmark |
+| Learn | `python run.py learn 20` | **Trains a policy** on generated demos and deploys it closed-loop |
 | Collect | `python run.py collect dataset 5` | Generates a randomized **imitation-learning dataset** |
 | Teleop | `python run.py teleop` | **Keyboard teleoperation** in the MuJoCo viewer |
 | Info | `python run.py info` | Prints model / sensor summary |
@@ -82,8 +90,10 @@ domain-randomization seed. A 2-episode sample lives in [`dataset/sample/`](datas
 
 ## Highlights
 
-- **Genuine finger-gaiting in-hand manipulation** — ~120° (max 176°) object rotation with the
-  *wrist held fixed*, secured in 90 % of randomized trials. Real dexterity, separately benchmarked.
+- **Genuine finger-gaiting in-hand manipulation** — ~128° (max 177°) object rotation with the
+  *wrist held fixed*, secured in 100 % of randomized trials. Real dexterity, separately benchmarked.
+- **Closes the learning loop** — generates demos, trains a from-scratch NumPy BC policy, and
+  deploys it closed-loop (77 % grasp success on unseen placements). No torch, no extra deps.
 - **22-DOF dexterous embodiment** with a complete tactile + force + inertial + visual sensor
   suite, built from a re-parented open-source hand.
 - **Quantified, not asserted**: 95 % overall pipeline success over randomized trials, plus a
@@ -112,7 +122,8 @@ dexsuite/
   env.py        # MuJoCo env: model/data, obs dict, sensors, rendering, step hooks
   skills.py     # motion primitives (grasp, pick/place, reorient, finger-gaiting, press)
   planner.py    # autonomous state-machine task + per-stage success metrics
-  evaluate.py   # randomized robustness eval + finger-gaiting benchmark
+  evaluate.py   # randomized robustness eval (Wilson CIs) + finger-gaiting benchmark
+  learn.py      # behavioural-cloning policy (NumPy MLP): data -> train -> deploy
   video.py      # annotated-video recorder with live sensor HUD
   collect.py    # randomized dataset generator
   teleop.py     # keyboard teleoperation
@@ -130,11 +141,11 @@ tests/          # model integrity, obs shapes, determinism, full-task success, r
 | Reproducibility | one-line install, deterministic, headless, pytest + CI, no GPU |
 | MuJoCo depth | 22 actuators, touch/force/IMU/encoder sensors, RGB-D camera, contacts, springs, fixtures |
 | Task design | long-horizon multi-stage sort + in-hand reorient + precision press; real-world (bin-picking); quantified over randomized trials |
-| Control | autonomous planner **+** teleop **+** data collection **+** quantitative eval, all in one |
+| Control | autonomous planner **+** teleop **+** data collection **+** **a learned BC policy**, all in one |
 | Dexterity | **true finger-gaiting in-hand rotation (~120°, wrist fixed)** + 16-DOF enveloping grasps + opposable thumb + single-finger press |
 | Engineering quality | typed modules, config, tests, CI, Makefile, vendored license, benchmark harness |
 | Presentation | auto-generated video with live sensor HUD and wrist-cam inset |
-| Innovation | integrated manipulate + teleop + reproducible IL-dataset generator |
+| Innovation | finger-gaiting + integrated teleop/collection + a closed **data→train→deploy learning loop** |
 
 ## Current limitations
 

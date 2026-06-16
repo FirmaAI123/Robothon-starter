@@ -81,6 +81,23 @@ def test_inhand_finger_gaiting():
     assert np.allclose(env.get_wrist_target(), wrist_before, atol=1e-6)
 
 
+def test_bc_mlp_learns():
+    """The from-scratch NumPy MLP fits a simple function (learning loop sanity)."""
+    from dexsuite.learn import MLP
+    rng = np.random.default_rng(0)
+    X = rng.uniform(-1, 1, (512, 13))
+    W = rng.normal(0, 1, (13, 7))
+    Y = np.tanh(X @ W)
+    net = MLP(13, 64, 7, seed=1)
+    net.xmu, net.xsd = X.mean(0), X.std(0) + 1e-6
+    net.ymu, net.ysd = Y.mean(0), Y.std(0) + 1e-6
+    Xn, Yn = (X - net.xmu) / net.xsd, (Y - net.ymu) / net.ysd
+    first = net.step(Xn, Yn)
+    for _ in range(400):
+        last = net.step(Xn, Yn)
+    assert last < first * 0.2, f"MLP failed to learn ({first:.3f} -> {last:.3f})"
+
+
 def test_render_smoke(env):
     try:
         img = env.render("scene_cam")

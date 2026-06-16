@@ -42,7 +42,7 @@ class TaskResult:
         return self
 
 
-def _in_bin(pos, bin_xy, tol=0.085):
+def _in_bin(pos, bin_xy, tol=0.10):
     return abs(pos[0] - bin_xy[0]) < tol and abs(pos[1] - bin_xy[1]) < tol and pos[2] < 0.5
 
 

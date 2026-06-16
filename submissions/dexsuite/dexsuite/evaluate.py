@@ -15,6 +15,17 @@ from .planner import run_task
 from .skills import SkillParams
 
 
+def wilson_ci(k: int, n: int, z: float = 1.96):
+    """95% Wilson score interval for a binomial success rate (k of n)."""
+    if n == 0:
+        return (0.0, 0.0)
+    p = k / n
+    d = 1 + z * z / n
+    centre = (p + z * z / (2 * n)) / d
+    half = (z / d) * np.sqrt(p * (1 - p) / n + z * z / (4 * n * n))
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
 def evaluate(trials: int = 20, seed: int = 0, randomize: bool = True,
              pos_jitter: float = 0.003, mass_jitter: float = 0.10,
              out_json: str | None = None) -> Dict:
@@ -49,11 +60,14 @@ def evaluate(trials: int = 20, seed: int = 0, randomize: bool = True,
              "grasp_ball", "reorient_ball", "place_ball", "press_button"]
     print(f"\n=== DexSuite evaluation: {trials} randomized trials "
           f"(pos±{pos_jitter*1000:.0f}mm, mass±{mass_jitter*100:.0f}%) ===")
-    print(f"{'stage':18s} success")
+    print(f"{'stage':18s} success     95% CI (Wilson)")
     for k in order:
         if k in stage_pass:
-            print(f"{k:18s} {stage_pass[k]}/{trials}  ({stage_pass[k]/trials*100:4.0f}%)")
+            lo, hi = wilson_ci(stage_pass[k], trials)
+            print(f"{k:18s} {stage_pass[k]:2d}/{trials} ({stage_pass[k]/trials*100:3.0f}%)"
+                  f"   [{lo*100:3.0f}%, {hi*100:3.0f}%]")
     print(f"{'OVERALL':18s} {np.mean(overall)*100:4.0f}%")
+    summary["stage_success_ci"] = {k: wilson_ci(stage_pass[k], trials) for k in stage_pass}
     print("\nmanipulation metrics (mean ± std):")
     for k in ("lift_z_cube", "lift_z_ball", "reorient_deg_cube",
               "gait_deg_ball", "button_mm"):

@@ -50,6 +50,12 @@ def main(argv=None):
         gait_benchmark(trials=n)
         return 0
 
+    if mode == "learn":          # data -> train BC policy -> deploy closed-loop
+        from dexsuite.learn import train, evaluate_policy
+        train(n_demos=60, epochs=300)
+        evaluate_policy(trials=int(argv[1]) if len(argv) > 1 else 20)
+        return 0
+
     if mode == "teleop":
         from dexsuite.teleop import teleop
         teleop()
