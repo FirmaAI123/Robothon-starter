@@ -100,11 +100,20 @@ class Hand:
         self.move_wrist(wx, wy, self.p.lift_z)
         return int(np.count_nonzero(self.env.touch() > 0.05)) >= 2
 
-    def reorient(self, roll=1.0, steps=500):
-        """In-hand reorientation: roll the grasped object about the wrist axis."""
+    def reorient(self, obj_name, roll=1.5, hold=180, steps=460):
+        """In-hand reorientation: roll the grasped object to a held target pose,
+        then return to neutral for placement. Returns (degrees_rotated, still_held).
+        """
+        import numpy as _np
         t = self.env.get_wrist_target()
+        q0 = self.env.object_pose(obj_name)[3:].copy()
         self.move_wrist(t[0], t[1], t[2], roll=roll, steps=steps)
+        self.env.step(hold)
+        qp = self.env.object_pose(obj_name)[3:].copy()
+        held = self.env.object_pose(obj_name)[2] > 0.55
         self.move_wrist(t[0], t[1], t[2], roll=0.0, steps=steps)
+        deg = float(_np.degrees(2 * _np.arccos(min(1.0, abs(float(_np.dot(q0, qp)))))))
+        return deg, held
 
     def place_in(self, xy):
         wx, wy = xy[0] - POCKET[0], xy[1] - POCKET[1]

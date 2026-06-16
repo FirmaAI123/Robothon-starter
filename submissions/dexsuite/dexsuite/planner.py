@@ -59,12 +59,17 @@ def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
         if recorder is not None:
             recorder.tick(t)
 
+    def cam(name):
+        if recorder is not None:
+            recorder.set_camera(name)
+
     phase("Initializing workcell")
     env.step(150)
 
     labels = {"cube": "red cube", "ball": "blue ball"}
     for obj in ("cube", "ball"):
         start = env.object_pose(obj)[:3].copy()
+        cam("track_cam")
         phase(f"Grasping {labels[obj]} from pick fixture")
         contacts = hand.pick_at(start[:2])
         lift_z = env.object_pose(obj)[2]
@@ -75,16 +80,15 @@ def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
             tick(f"Grasped {labels[obj]}")
 
         if reorient:
-            phase(f"In-hand reorientation of {labels[obj]}")
-            before = env.object_pose(obj)[3:]
-            hand.reorient(roll=1.0, steps=400)
-            after = env.object_pose(obj)[3:]
-            dq = 2 * np.arccos(min(1.0, abs(float(np.dot(before, after)))))
-            ok = env.object_pose(obj)[2] > 0.55
-            res.add(f"reorient_{obj}", ok, f"in-hand rotation ~{np.degrees(dq):.0f} deg, still held")
+            cam("track_cam")
+            phase(f"In-hand reorientation of {labels[obj]} (~90 deg)")
+            deg, held = hand.reorient(obj, roll=1.5)
+            ok = held and deg > 45.0
+            res.add(f"reorient_{obj}", ok, f"in-hand rotation ~{deg:.0f} deg, still held={held}")
             if ok:
-                tick(f"Reoriented {labels[obj]} ~{np.degrees(dq):.0f}deg")
+                tick(f"Reoriented {labels[obj]} ~{deg:.0f}deg in-hand")
 
+        cam("scene_cam")
         phase(f"Placing {labels[obj]} in colour-matched bin")
         hand.place_in(BIN[obj])
         pos = env.object_pose(obj)[:3]
@@ -94,6 +98,7 @@ def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
             tick(f"Sorted {labels[obj]} into bin")
         hand.move_wrist(0.0, 0.0, hand.p.lift_z, steps=300)
 
+    cam("scene_cam")
     phase("Fingertip precision: pressing confirmation button")
     pressed = hand.press_button(BUTTON_XY, BUTTON_PRESS_Z)
     ok = abs(pressed) >= PRESS_TARGET

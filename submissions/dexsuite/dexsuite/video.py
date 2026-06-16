@@ -51,6 +51,9 @@ class Recorder:
     def set_phase(self, text: str):
         self.phase = text
 
+    def set_camera(self, name: str):
+        self.main_cam = name
+
     def tick(self, text: str):
         self.ticks.append(text)
 

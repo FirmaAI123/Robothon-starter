@@ -48,6 +48,8 @@
     <!-- scene camera: front-3/4 view of the workspace -->
     <camera name="scene_cam" pos="0.62 -0.62 0.92" xyaxes="0.7 0.7 0 -0.32 0.32 0.9"/>
     <camera name="front_cam" pos="0.0 -0.85 0.70" xyaxes="1 0 0 0 0.5 0.86"/>
+    <!-- tracking close-up: auto-aims at the palm as the hand moves -->
+    <camera name="track_cam" pos="0.30 -0.40 0.78" mode="targetbody" target="palm"/>
 
     <!-- pick fixtures: thin pedestals raise parts to manipulator height -->
     <body name="ped1" pos="0.16 0.07 0">
