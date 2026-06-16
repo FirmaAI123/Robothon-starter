@@ -150,7 +150,7 @@ class Hand:
         deg = _relative_angle_deg(q0, q1)
         if resecure:
             # firmly close around the (now-rolled) object so downstream transport
-            # stays reliable. (Ablation in evaluate.py shows this is load-bearing.)
+            # starts from a known, secure grasp.
             for i in range(300):
                 self.env.set_finger_targets(grasp_pose(1.0))
                 self.env.set_wrist_target(t)

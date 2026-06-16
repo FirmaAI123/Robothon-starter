@@ -142,19 +142,25 @@ def train(n_demos=60, epochs=300, seed=0):
     return net
 
 
-def rollout(net, seed, randomize=True):
-    env = DexSuiteEnv(EnvConfig(seed=seed, randomize=randomize,
-                                pos_jitter=0.012, mass_jitter=0.12))
-    env.reset(); env.step(60)
+def rollout_on(env, net) -> bool:
+    """Run the learned policy closed-loop on an existing env (lets a video recorder
+    capture the rollout via the env's step hooks). Returns grasp success."""
     for k in range(HORIZON):
         x = _obs(env, k / HORIZON)
         a = (net.forward(((x - net.xmu) / net.xsd)[None])[0] * net.ysd + net.ymu)
         env.set_wrist_target(a[:6])
         env.set_finger_targets(grasp_pose(float(np.clip(a[6], 0, 1))))
         env.step(SUBSTEPS)
-    z = env.object_pose("ball")[2]
+    return env.object_pose("ball")[2] > 0.6
+
+
+def rollout(net, seed, randomize=True):
+    env = DexSuiteEnv(EnvConfig(seed=seed, randomize=randomize,
+                                pos_jitter=0.012, mass_jitter=0.12))
+    env.reset(); env.step(60)
+    ok = rollout_on(env, net)
     env.close()
-    return z > 0.6
+    return ok
 
 
 def evaluate_policy(trials=20, seed=500):
