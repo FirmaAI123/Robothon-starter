@@ -28,6 +28,17 @@ POCKET = np.array([0.07, 0.03])
 INDEX_TIP = np.array([0.02, -0.008])
 
 
+def _relative_angle_deg(q0, q1) -> float:
+    """Angle (deg) of the relative rotation between two unit quaternions (w,x,y,z)."""
+    q0 = np.asarray(q0) / (np.linalg.norm(q0) + 1e-12)
+    q1 = np.asarray(q1) / (np.linalg.norm(q1) + 1e-12)
+    w0, x0, y0, z0 = q0
+    a, b, c, d = q1
+    e, f, g, h = w0, -x0, -y0, -z0           # conjugate of q0
+    rw = a * e - b * f - c * g - d * h        # real part of q1 * conj(q0)
+    return float(2.0 * np.degrees(np.arccos(min(1.0, abs(rw)))))
+
+
 def grasp_pose(c: float) -> Dict[str, float]:
     """Finger targets for closure fraction ``c`` in [0, 1] (0 = open, 1 = firm)."""
     c = float(np.clip(c, 0.0, 1.0))
@@ -115,8 +126,46 @@ class Hand:
         deg = float(_np.degrees(2 * _np.arccos(min(1.0, abs(float(_np.dot(q0, qp)))))))
         return deg, held
 
-    def place_in(self, xy):
-        wx, wy = xy[0] - POCKET[0], xy[1] - POCKET[1]
+    def inhand_spin(self, obj_name, cycles=8, amp=0.30, closure=0.85):
+        """True finger-gaiting in-hand manipulation: with the **wrist held fixed**,
+        oscillate the fingers against the thumb to roll the grasped object about an
+        in-hand axis. Returns (net_rotation_degrees, still_held)."""
+        import numpy as _np
+        t = self.env.get_wrist_target()
+        base = grasp_pose(closure)
+        q0 = self.env.object_pose(obj_name)[3:].copy()
+        for _ in range(cycles):
+            for ph in _np.linspace(0.0, 2 * _np.pi, 44):
+                s = amp * _np.sin(ph)
+                p = dict(base)
+                for f in ("if", "mf", "rf"):
+                    p[f + "_pip"] = base[f + "_pip"] + s
+                    p[f + "_dip"] = base[f + "_dip"] + s
+                p["th_mcp"] = base["th_mcp"] - s
+                p["th_ipl"] = base["th_ipl"] - s
+                self.env.set_finger_targets(p)
+                self.env.set_wrist_target(t)        # wrist stays put: fingers do the work
+                self.env.step(3)
+        q1 = self.env.object_pose(obj_name)[3:].copy()
+        deg = _relative_angle_deg(q0, q1)
+        # re-secure: firmly close around the (now-rolled) object so the downstream
+        # transport/place stays reliable.
+        for i in range(300):
+            self.env.set_finger_targets(grasp_pose(1.0))
+            self.env.set_wrist_target(t)
+            self.env.step(1)
+        self._closure = 1.0
+        held = self.env.object_pose(obj_name)[2] > 0.55
+        return deg, held
+
+    def place_in(self, xy, obj_name=None):
+        # object-aware placement: aim the object's ACTUAL in-hand position over the
+        # bin (it may have shifted during in-hand manipulation), not the nominal pocket.
+        if obj_name is not None:
+            off = self.env.object_pose(obj_name)[:2] - self.env.get_wrist_target()[:2]
+        else:
+            off = POCKET
+        wx, wy = xy[0] - off[0], xy[1] - off[1]
         self.move_wrist(wx, wy, self.p.lift_z, steps=700)
         self.move_wrist(wx, wy, self.p.approach_z, steps=300)
         self.set_closure(0.0, self.p.open_steps)

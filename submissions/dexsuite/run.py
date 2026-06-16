@@ -43,6 +43,13 @@ def main(argv=None):
                 mass_jitter=cc.get("mass_jitter", 0.15))
         return 0
 
+    if mode == "eval":
+        from dexsuite.evaluate import evaluate, gait_benchmark
+        n = int(argv[1]) if len(argv) > 1 else 20
+        evaluate(trials=n, out_json="eval_results.json")
+        gait_benchmark(trials=n)
+        return 0
+
     if mode == "teleop":
         from dexsuite.teleop import teleop
         teleop()

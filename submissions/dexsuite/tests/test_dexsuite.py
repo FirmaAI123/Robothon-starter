@@ -67,6 +67,20 @@ def test_full_task_succeeds():
     assert res.success_rate >= 0.99, [(s.name, s.ok, s.detail) for s in res.stages]
 
 
+def test_inhand_finger_gaiting():
+    """Finger-gaiting rolls the grasped ball with the WRIST HELD FIXED."""
+    env = DexSuiteEnv(EnvConfig(seed=0))
+    env.reset(); env.step(120)
+    hand = Hand(env)
+    hand.pick_at(env.object_pose("ball")[:2])
+    wrist_before = env.get_wrist_target().copy()
+    deg, held = hand.inhand_spin("ball", cycles=6, amp=0.22, closure=0.90)
+    assert held, "object dropped during finger-gaiting"
+    assert deg > 25.0, f"insufficient in-hand rotation: {deg:.0f} deg"
+    # the wrist target must not have moved: the fingers did the work
+    assert np.allclose(env.get_wrist_target(), wrist_before, atol=1e-6)
+
+
 def test_render_smoke(env):
     try:
         img = env.render("scene_cam")

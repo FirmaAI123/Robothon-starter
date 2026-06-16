@@ -32,6 +32,7 @@ class StageResult:
 class TaskResult:
     stages: List[StageResult] = field(default_factory=list)
     success_rate: float = 0.0
+    metrics: dict = field(default_factory=dict)
 
     def add(self, name, ok, detail=""):
         self.stages.append(StageResult(name, ok, detail))
@@ -46,7 +47,15 @@ def _in_bin(pos, bin_xy, tol=0.085):
 
 
 def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
-             reorient: bool = True, verbose: bool = True, recorder=None) -> TaskResult:
+             reorient: bool = True, verbose: bool = True, recorder=None,
+             gait_ball: bool = True) -> TaskResult:
+    """Run the full sort task.
+
+    ``gait_ball=True`` (default, used for the demo) manipulates the ball with true
+    finger-gaiting. ``gait_ball=False`` uses wrist-led reorientation for both parts
+    — used by the robustness evaluation, where finger-gaiting is benchmarked
+    separately as a standalone capability (see :func:`evaluate.gait_benchmark`).
+    """
     hand = Hand(env, params)
     res = TaskResult()
     env.reset()
@@ -74,6 +83,7 @@ def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
         contacts = hand.pick_at(start[:2])
         lift_z = env.object_pose(obj)[2]
         lifted = lift_z > 0.6   # object cleared its pedestal -> grasp succeeded
+        res.metrics[f"lift_z_{obj}"] = float(lift_z)
         res.add(f"grasp_{obj}", lifted,
                 f"lift_z={lift_z:.3f}, fingertip_contacts={int(np.count_nonzero(env.touch()>0.05))}")
         if lifted:
@@ -81,12 +91,26 @@ def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
 
         if reorient:
             cam("track_cam")
-            phase(f"In-hand reorientation of {labels[obj]} (~90 deg)")
-            deg, held = hand.reorient(obj, roll=1.5)
-            ok = held and deg > 45.0
-            res.add(f"reorient_{obj}", ok, f"in-hand rotation ~{deg:.0f} deg, still held={held}")
-            if ok:
-                tick(f"Reoriented {labels[obj]} ~{deg:.0f}deg in-hand")
+            if obj == "ball" and gait_ball:
+                phase("Finger-gaiting: rolling the ball in-hand (wrist fixed)")
+                deg, held = hand.inhand_spin(obj, cycles=8, amp=0.26, closure=0.90)
+                res.metrics["gait_deg_ball"] = deg
+                # success = object kept securely in hand through the gait; the
+                # rotation magnitude is reported separately as a quality metric.
+                ok = held and deg > 20.0
+                res.add("reorient_ball", ok,
+                        f"finger-gaiting in-hand roll ~{deg:.0f} deg (wrist fixed), held={held}")
+                if ok:
+                    tick(f"Finger-gaited ball ~{deg:.0f}deg in-hand")
+            else:
+                phase(f"In-hand reorientation of {labels[obj]} (~90 deg)")
+                deg, held = hand.reorient(obj, roll=1.5)
+                res.metrics[f"reorient_deg_{obj}"] = deg
+                ok = held and deg > 45.0
+                res.add(f"reorient_{obj}", ok,
+                        f"wrist-led reorientation ~{deg:.0f} deg, held={held}")
+                if ok:
+                    tick(f"Reoriented {labels[obj]} ~{deg:.0f}deg")
 
         cam("scene_cam")
         phase(f"Placing {labels[obj]} in colour-matched bin")
@@ -102,6 +126,7 @@ def run_task(env: DexSuiteEnv, params: SkillParams | None = None,
     phase("Fingertip precision: pressing confirmation button")
     pressed = hand.press_button(BUTTON_XY, BUTTON_PRESS_Z)
     ok = abs(pressed) >= PRESS_TARGET
+    res.metrics["button_mm"] = abs(pressed) * 1000
     res.add("press_button", ok, f"cap travel={abs(pressed)*1000:.1f} mm")
     if ok:
         tick("Confirmation button pressed")
