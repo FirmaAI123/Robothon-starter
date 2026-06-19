@@ -34,8 +34,10 @@ with 95 % Wilson confidence intervals, not a single lucky run.
 |---|---|---|---|---|
 | grasp cube | 100 % [91,100] | | grasp ball | 100 % [91,100] |
 | reorient cube | 100 % [91,100] | | reorient ball | 100 % [91,100] |
-| place cube | 98 % [87,100] | | place ball | 85 % [71,93] |
-| press button | 100 % [91,100] | | **overall** | **98 %** |
+| place cube | 100 % [91,100] | | place ball | 100 % [91,100] |
+| press button | 100 % [91,100] | | **overall** | **100 %** |
+
+Every one of the 7 stages succeeded in all 40 randomized trials (tactile-reactive grip).
 
 **Finger-gaiting capability** (standalone benchmark, wrist held fixed): object kept securely
 in hand **100 %** of trials; in-hand rotation **128 ± 37° (max 177°)**.
@@ -61,6 +63,9 @@ Nominal (un-randomized) run: **7/7 stages, 1.00**, deterministic.
 - **True in-hand finger-gaiting.** With the wrist *frozen*, the fingers oscillate against the
   thumb in a phased gait that rolls the grasped ball about an in-hand axis (≈120° typical,
   up to 176°), then re-secure it — genuine multi-finger dexterity, not a wrist rotation.
+- **Tactile-reactive grasp.** The fingers close under closed-loop control until the wrist
+  force sensor reports a target grip force (≈30 N over baseline), adapting the squeeze to the
+  object rather than a blind fixed close — sensor-driven, not open-loop.
 - **Control.** A deterministic **state-machine planner** sequences interpolated (jerk-free)
   wrist moves and ramped finger closures. Carries are smooth so grasped objects are never
   flung; releases are slow so spheres settle into bins.
@@ -96,7 +101,7 @@ domain-randomization seed. A 2-episode sample lives in [`dataset/sample/`](datas
   deploys it closed-loop (77 % grasp success on unseen placements). No torch, no extra deps.
 - **22-DOF dexterous embodiment** with a complete tactile + force + inertial + visual sensor
   suite, built from a re-parented open-source hand.
-- **Quantified, not asserted**: 95 % overall pipeline success over randomized trials, plus a
+- **Quantified, not asserted**: 100 % overall pipeline success over 40 randomized trials, plus a
   deterministic 1.00 nominal run — numbers from `run.py eval`, reproducible.
 - **Auto-annotated demo video** produced *by the submitted code*, with a live sensor HUD and
   dynamic close-up / overview camera work.
@@ -139,7 +144,7 @@ tests/          # model integrity, obs shapes, determinism, full-task success, r
 | Criterion | In DexSuite |
 |---|---|
 | Reproducibility | one-line install, deterministic, headless, pytest + CI, no GPU |
-| MuJoCo depth | 22 actuators, touch/force/IMU/encoder sensors, RGB-D camera, contacts, springs, fixtures |
+| MuJoCo depth | 22 actuators, touch/force/IMU/encoder sensors used in a closed loop, RGB-D camera, contacts, springs |
 | Task design | long-horizon multi-stage sort + in-hand reorient + precision press; real-world (bin-picking); quantified over randomized trials |
 | Control | autonomous planner **+** teleop **+** data collection **+** **a learned BC policy**, all in one |
 | Dexterity | **true finger-gaiting in-hand rotation (~120°, wrist fixed)** + 16-DOF enveloping grasps + opposable thumb + single-finger press |

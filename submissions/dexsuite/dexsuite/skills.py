@@ -102,11 +102,29 @@ class Hand:
         self.move_wrist(wx, wy, self.p.approach_z)
         return wx, wy
 
+    def grasp_reactive(self, force_target: float = 30.0, max_closure: float = 1.0):
+        """Close the fingers until the wrist force sensor reports a target grip
+        force (tactile-reactive grasp) or the hand is fully closed — adapting the
+        grip to the object instead of a blind fixed squeeze. Returns (closure, N)."""
+        base = float(np.linalg.norm(self.env.get_obs()["wrist_force"]))
+        c0 = self._closure
+        grip = base
+        for i in range(self.p.close_steps):
+            c = c0 + (max_closure - c0) * (i + 1) / self.p.close_steps
+            self.env.set_finger_targets(grasp_pose(c))
+            self.env.step(1)
+            self._closure = c
+            grip = float(np.linalg.norm(self.env.get_obs()["wrist_force"]))
+            if c > 0.45 and grip - base >= force_target:
+                break
+        return self._closure, grip
+
     def pick_at(self, xy) -> bool:
-        """Pick an object resting at world ``xy`` on a pedestal. Returns grasp ok."""
+        """Pick an object on a pedestal using a tactile-reactive grasp (close until
+        the wrist grip force confirms secure contact)."""
         wx, wy = self.goto_above(xy)
         self.move_wrist(wx, wy, self.p.grasp_z)
-        self.set_closure(1.0, self.p.close_steps)
+        self.grasp_reactive(force_target=30.0)
         self.env.step(self.p.settle_steps)
         self.move_wrist(wx, wy, self.p.lift_z)
         return int(np.count_nonzero(self.env.touch() > 0.05)) >= 2
