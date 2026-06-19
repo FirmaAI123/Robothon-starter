@@ -6,7 +6,7 @@ from .controller import TrotController, patrol_command
 from .video import Recorder, ACCENT, WHITE, DIM, GREEN
 
 
-def record_demo(out_path="demo.mp4", seed=0, fps=30, every=12, secs=16.0):
+def record_demo(out_path="demo.mp4", seed=0, fps=30, every=12, secs=23.0):
     env = QuadEnv(EnvConfig(seed=seed))
     env.reset()
     ctl = TrotController(env)

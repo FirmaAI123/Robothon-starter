@@ -62,13 +62,19 @@ class TrotController:
                      else "stance") for lg in LEGS}
 
 
-# ---- a simple "patrol" command schedule: walk, turn, walk ----
+# ---- autonomous patrol: traverse terrain, then a multi-turn course ----
 def patrol_command(t: float):
-    """Returns (forward, turn, label) for an autonomous patrol over time."""
-    if t < 5.0:
-        return 1.0, 0.0, "Walking forward"
+    """Returns (forward, turn, label) for an autonomous patrol over time:
+    walk across the terrain course (ramp, bumps, step), then steer through a
+    left/right turning sequence."""
     if t < 9.0:
-        return 0.6, 0.18, "Turning (in-place trot + yaw)"
-    if t < 14.0:
-        return 1.0, 0.0, "Walking forward on new heading"
+        return 1.0, 0.0, "Traversing terrain: ramp, bumps, step (open-loop CPG)"
+    if t < 12.5:
+        return 0.5, 0.20, "Turning left"
+    if t < 15.5:
+        return 1.0, 0.0, "Walking on new heading"
+    if t < 19.0:
+        return 0.5, -0.20, "Turning right"
+    if t < 22.0:
+        return 1.0, 0.0, "Walking forward"
     return 0.0, 0.0, "Halting (settling to stand)"

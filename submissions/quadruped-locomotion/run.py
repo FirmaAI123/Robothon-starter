@@ -19,11 +19,11 @@ def main(argv=None):
         from quadloco.controller import TrotController, patrol_command
         env = QuadEnv(EnvConfig(seed=0)); env.reset()
         ctl = TrotController(env); x0 = env.base_xy().copy(); min_up = 1.0
-        for i in range(int(16.0 / env.dt)):
+        for i in range(int(23.0 / env.dt)):
             t = i * env.dt; fwd, turn, _ = patrol_command(t)
             ctl.act(t, fwd, turn); env.step(1); min_up = min(min_up, env.upright())
         dist = float(np.linalg.norm(env.base_xy() - x0))
-        print(f"patrol 16s: traversed {dist:.2f} m, final height {env.base_height():.2f} m, "
+        print(f"patrol 23s: traversed {dist:.2f} m, final height {env.base_height():.2f} m, "
               f"min uprightness {min_up:.2f}, upright={min_up > 0.5}")
         return 0 if min_up > 0.5 else 1
 

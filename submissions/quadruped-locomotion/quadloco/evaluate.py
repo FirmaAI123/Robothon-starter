@@ -50,8 +50,8 @@ def evaluate(trials=20, secs=10.0, out_json=None) -> Dict:
     dists = np.array([r["dist"] for r in rows])
     speeds = np.array([r["speed"] for r in rows])
     lo, hi = wilson_ci(upright, trials)
-    print(f"\n=== QuadLoco evaluation: {trials} randomized trials "
-          f"(trunk mass ±12%, heading ±0.05 rad, {secs:.0f}s each) ===")
+    print(f"\n=== QuadLoco evaluation: {trials} randomized trials over the TERRAIN course "
+          f"(ramp+bumps+step; trunk mass ±12%, heading ±0.05 rad, {secs:.0f}s) ===")
     print(f"stayed upright (no fall): {upright}/{trials} ({upright/trials*100:.0f}%)  "
           f"95% CI [{lo*100:.0f}%, {hi*100:.0f}%]")
     print(f"forward distance: {dists.mean():.2f} ± {dists.std():.2f} m  "
