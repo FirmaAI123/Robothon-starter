@@ -44,7 +44,25 @@ class QuadEnv:
         self.base_bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "base")
         self._renderer: Optional[mujoco.Renderer] = None
         self._hooks: list = []
+        self._fill_heightfield()
         self.reset()
+
+    def _fill_heightfield(self):
+        """Procedurally fill the 'rough' heightfield with smooth random terrain
+        (deterministic by seed) so the patch is genuinely uneven, not flat."""
+        hid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_HFIELD, "rough")
+        if hid < 0:
+            return
+        nr, nc = int(self.model.hfield_nrow[hid]), int(self.model.hfield_ncol[hid])
+        rng = np.random.default_rng(12345)
+        coarse = rng.random((nr // 6 + 2, nc // 6 + 2))
+        big = np.repeat(np.repeat(coarse, 6, 0), 6, 1)[:nr, :nc]
+        for _ in range(3):                      # smooth
+            p = np.pad(big, 1, mode="edge")
+            big = sum(p[i:i + nr, j:j + nc] for i in range(3) for j in range(3)) / 9.0
+        big = (big - big.min()) / (big.max() - big.min() + 1e-9)
+        adr = self.model.hfield_adr[hid]
+        self.model.hfield_data[adr:adr + nr * nc] = big.flatten().astype(np.float64)
 
     # ---- id helpers ----
     def _aid(self, n):

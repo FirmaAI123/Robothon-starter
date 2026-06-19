@@ -18,6 +18,8 @@
       rgb2="0.09 0.10 0.13" markrgb="0.5 0.55 0.65" width="300" height="300"/>
     <material name="grid" texture="grid" texuniform="true" texrepeat="8 8" reflectance="0.12"/>
     <material name="terr" rgba="0.36 0.30 0.24 1" reflectance="0.05"/>
+    <!-- continuous rough-terrain heightfield (data filled procedurally at load) -->
+    <hfield name="rough" nrow="60" ncol="120" size="0.9 0.7 0.03 0.1"/>
   </asset>
 
   <worldbody>
@@ -25,14 +27,14 @@
     <light name="fill" pos="-1.0 1.0 2.0" dir="0.3 -0.3 -1" diffuse="0.3 0.3 0.35"/>
     <geom name="floor" type="plane" size="0 0 0.05" material="grid" friction="1.0 0.02 0.001"/>
 
-    <!-- terrain course along +x: gentle ramp, a field of bumps, a low step.
-         The open-loop CPG trot traverses it without terrain feedback. -->
-    <geom name="ramp" type="box" size="0.5 0.6 0.03" pos="1.2 0 0.0" euler="0 -0.12 0"
+    <!-- terrain course along +x: a gentle ramp, a continuous ROUGH heightfield
+         patch (±3 cm), then a low step. The open-loop CPG trot traverses all of
+         it with no terrain feedback. -->
+    <geom name="ramp" type="box" size="0.45 0.6 0.03" pos="1.0 0 0.0" euler="0 -0.12 0"
       material="terr" friction="1.0 0.02 0.001"/>
-    <geom name="bump1" type="box" size="0.06 0.6 0.012" pos="2.1 0 0.012" material="terr"/>
-    <geom name="bump2" type="box" size="0.06 0.6 0.015" pos="2.5 0 0.015" material="terr"/>
-    <geom name="bump3" type="box" size="0.06 0.6 0.012" pos="2.9 0 0.012" material="terr"/>
-    <geom name="step" type="box" size="0.4 0.6 0.025" pos="3.6 0 0.025" material="terr"/>
+    <geom name="rough" type="hfield" hfield="rough" pos="2.6 0 0.0"
+      material="terr" friction="1.0 0.02 0.001"/>
+    <geom name="step" type="box" size="0.35 0.6 0.025" pos="4.0 0 0.025" material="terr"/>
 
     <!-- cameras: a tracking close-up that follows the robot, plus a wide scene view -->
     <camera name="track_cam" mode="targetbody" target="base" pos="1.4 -1.6 0.9"/>
