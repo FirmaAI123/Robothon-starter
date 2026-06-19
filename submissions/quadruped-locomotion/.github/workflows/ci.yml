@@ -1,0 +1,19 @@
+name: quadloco-ci
+on:
+  push: {paths: ["submissions/quadruped-locomotion/**"]}
+  pull_request: {paths: ["submissions/quadruped-locomotion/**"]}
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: submissions/quadruped-locomotion}}
+    env: {MUJOCO_GL: egl}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.11"}
+      - run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1
+      - run: python -m pip install -r requirements.txt
+      - run: python run.py info
+      - run: pytest -q tests/
+      - run: python run.py walk
