@@ -56,6 +56,18 @@ def test_is_real_physics():
     env.close()
 
 
+def test_heading_hold_reduces_drift():
+    """Closed-loop IMU heading-hold keeps the robot straighter than open-loop."""
+    def drift(use_drive):
+        env = QuadEnv(EnvConfig(seed=7, randomize=True, mass_jitter=0.12, yaw_jitter=0.05))
+        env.reset(); ctl = TrotController(env); y0 = env.base_xy()[1]
+        for i in range(int(10.0 / env.dt)):
+            (ctl.drive if use_drive else ctl.act)(i * env.dt, 1.0, 0.0)
+            env.step(1)
+        d = abs(env.base_xy()[1] - y0); env.close(); return d
+    assert drift(True) < drift(False) - 0.3, "heading-hold did not reduce drift"
+
+
 def test_determinism():
     def run():
         e = QuadEnv(EnvConfig(seed=0)); e.reset(); c = TrotController(e)

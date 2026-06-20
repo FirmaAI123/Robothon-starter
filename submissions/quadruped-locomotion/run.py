@@ -21,7 +21,7 @@ def main(argv=None):
         ctl = TrotController(env); x0 = env.base_xy().copy(); min_up = 1.0
         for i in range(int(23.0 / env.dt)):
             t = i * env.dt; fwd, turn, _ = patrol_command(t)
-            ctl.act(t, fwd, turn); env.step(1); min_up = min(min_up, env.upright())
+            ctl.drive(t, fwd, turn); env.step(1); min_up = min(min_up, env.upright())
         dist = float(np.linalg.norm(env.base_xy() - x0))
         print(f"patrol 23s: traversed {dist:.2f} m, final height {env.base_height():.2f} m, "
               f"min uprightness {min_up:.2f}, upright={min_up > 0.5}")

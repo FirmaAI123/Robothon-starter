@@ -34,6 +34,7 @@ class TrotController:
     def __init__(self, env, params: GaitParams | None = None):
         self.env = env
         self.p = params or GaitParams()
+        self._target_heading = None
 
     def joint_targets(self, t: float, forward: float = 1.0, turn: float = 0.0) -> np.ndarray:
         """Desired joint angles (12,) in env actuator order for time ``t``."""
@@ -55,6 +56,30 @@ class TrotController:
 
     def act(self, t: float, forward: float = 1.0, turn: float = 0.0):
         self.env.set_motor_torques(self.pd_torque(self.joint_targets(t, forward, turn)))
+
+    # ---- closed-loop IMU heading hold ----
+    def imu_yaw(self) -> float:
+        """Trunk yaw read from the IMU orientation sensor."""
+        w, x, y, z = self.env.get_obs()["imu_quat"]
+        return float(2.0 * np.arctan2(z, w))
+
+    def drive(self, t: float, forward: float = 1.0, turn_cmd: float = 0.0,
+              kp_yaw: float = 2.5, hold: bool = True):
+        """Drive with IMU feedback: explicit turn commands steer (and re-anchor the
+        heading target); straight segments hold heading via a proportional yaw
+        correction from the IMU — closed-loop, not open-loop dead-reckoning."""
+        if self._target_heading is None:
+            self._target_heading = self.imu_yaw()
+        if abs(turn_cmd) > 1e-6:
+            self._target_heading = self.imu_yaw()      # track heading through turns
+            turn = turn_cmd
+        elif hold and forward > 0:
+            err = (self.imu_yaw() - self._target_heading + np.pi) % (2 * np.pi) - np.pi
+            # positive turn command yaws the body negative, so correct with +err
+            turn = float(np.clip(kp_yaw * err, -0.15, 0.15))
+        else:
+            turn = 0.0
+        self.act(t, forward, turn)
 
     # ---- gait phase (for HUD) ----
     def stance_swing(self, t: float):

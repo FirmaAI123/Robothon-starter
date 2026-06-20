@@ -25,7 +25,7 @@ def record_demo(out_path="demo.mp4", seed=0, fps=30, every=12, secs=23.0):
         if label != last:
             rec.set_phase(label)
             last = label
-        ctl.act(t, fwd, turn)
+        ctl.drive(t, fwd, turn)
         env.step(1)
     import numpy as np
     dist = float(np.linalg.norm(env.base_xy() - rec.x0))
