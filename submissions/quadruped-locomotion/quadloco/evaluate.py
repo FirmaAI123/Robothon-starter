@@ -247,14 +247,16 @@ def payload_delivery(trials=10, out_json=None):
     lo, hi = wilson_ci(delv, trials)
     up_on = float(np.mean([r["min_up"] for r in on]))
     up_off = float(np.mean([r["min_up"] for r in off]))
-    slip = float(np.mean([r["max_slip"] for r in on]))
+    slip_m, slip_ci = mean_ci([r["max_slip"] for r in on])   # per-trial peak slip, with CI
     print(f"\n=== Loco-manipulation: payload delivery over terrain + turn ({trials} seeds) ===")
     print(f"delivered (cargo kept the whole route): {delv}/{trials} "
           f"({delv/trials*100:.0f}%)  95% CI [{lo*100:.0f}%, {hi*100:.0f}%]")
-    print(f"max cargo slip on tray: {slip*100:.1f} cm (stayed within the {12:.0f} cm tray)")
+    print(f"peak cargo slip on tray: {slip_m*100:.1f} ± {slip_ci*100:.1f} cm (95% CI; "
+          f"payload stays on while slip < 13 cm)")
     print(f"laden min-uprightness — leveling ON {up_on:.2f}  vs  OFF {up_off:.2f}")
     res = {"trials": trials, "delivered_rate": delv / trials, "delivered_ci": [lo, hi],
-           "max_slip_m": slip, "laden_min_up_on": up_on, "laden_min_up_off": up_off}
+           "slip_m": {"mean": slip_m, "ci95": slip_ci}, "laden_min_up_on": up_on,
+           "laden_min_up_off": up_off}
     if out_json:
         try:
             with open(out_json) as f:

@@ -1,2 +1,2 @@
 """QuadLoco: physics-based quadruped locomotion (Unitree Go2, MuJoCo)."""
-__version__ = "1.5.0"  # + loco-manipulation: free-payload delivery (carry cargo over terrain)
+__version__ = "1.6.0"  # payload stability (slip 7.6->3.4cm) + concise demos (judge feedback)

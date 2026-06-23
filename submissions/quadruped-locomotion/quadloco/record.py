@@ -13,7 +13,7 @@ PUSH_FORCE = 130.0     # N lateral (within the ~160 N survivable envelope)
 PUSH_DUR = 0.10        # s
 
 
-def record_demo(out_path="demo.mp4", seed=0, fps=30, every=12, secs=28.5):
+def record_demo(out_path="demo.mp4", seed=0, fps=30, every=20, secs=28.5):
     env = QuadEnv(EnvConfig(seed=seed))
     env.reset()
     ctl = TrotController(env)
@@ -24,7 +24,7 @@ def record_demo(out_path="demo.mp4", seed=0, fps=30, every=12, secs=28.5):
         ("Unitree Go2 · 12 torque motors · CPG trot + PD · MuJoCo", 20, DIM),
         ("3 feedback loops: gait + IMU heading-hold + IMU terrain leveling", 20, GREEN),
         ("real dynamics & contacts — every frame is mj_step", 20, DIM),
-    ], n=42)
+    ], n=28)
     n = int(secs / env.dt)
     last = None
     pushed = False
@@ -49,14 +49,14 @@ def record_demo(out_path="demo.mp4", seed=0, fps=30, every=12, secs=28.5):
         ("terrain leveling (ablation): peak trunk pitch 24.2° → 19.3°, 20/20 upright", 20, GREEN),
         (f"shoved at {PUSH_FORCE:.0f} N mid-stride — recovered (real data.xfrc_applied)", 20, GREEN),
         ("closed-loop torque control · real contacts · no kinematic scripting · no GPU", 20, DIM),
-    ], n=48)
+    ], n=34)
     rec.save(out_path, fps=fps)
     env.close()
     print(f"wrote {out_path} ({len(rec.frames)} frames, {len(rec.frames)/fps:.1f}s)")
     return out_path
 
 
-def record_cargo(out_path="demo_cargo.mp4", seed=0, fps=30, every=12):
+def record_cargo(out_path="demo_cargo.mp4", seed=0, fps=30, every=16):
     """Loco-manipulation clip: the Go2 delivers a free payload across the terrain."""
     env = QuadEnv(EnvConfig(scene=CARGO, seed=seed)); env.reset()
     ctl = TrotController(env)

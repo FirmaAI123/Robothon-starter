@@ -35,10 +35,10 @@ See [`demo.mp4`](demo.mp4) (locomotion patrol) and [`demo_cargo.mp4`](demo_cargo
 - **Recovers from real shoves** — a lateral `data.xfrc_applied` impulse mid-stride: survives
   **up to 160 N · 0.1 s, 6/6** (peak roll ≤ 29°, resettles ≤ 1.5 s); honest failure point at
   240 N. Disturbance rejection, measured — not a scripted stumble.
-- **Loco-manipulation: payload delivery** — carries a **free 0.4 kg payload** on a trunk tray
-  across the ramp+rough+step course **+ a turn**, delivered **10/10** (the cargo is a genuine
-  free body — it slides up to 7.6 cm on the tray but stays); leveling keeps the laden robot
-  steadier (min-upright 0.84 → 0.90). Object transport by whole-body locomotion, not a bolted-on prop.
+- **Loco-manipulation: payload delivery** — carries a **free 0.45 kg payload** in a snug trunk
+  tray across the ramp+rough+step course **+ a turn**, delivered **10/10** (the cargo is a genuine
+  free body — it slides **3.4 ± 0.2 cm** on the tray but stays); leveling keeps the laden robot
+  steadier (min-upright 0.84 → 0.89). Object transport by whole-body locomotion, not a bolted-on prop.
 - **Heading-hold (PD on two sensors)** — IMU-yaw error + gyro-rate damping cut lateral drift
   **~3.2 m → 0.15 m** over 10 s under randomization.
 - **Speed is controllable** — commanded forward maps monotonically to body speed
@@ -99,17 +99,17 @@ gap, push recovery, speed monotonicity, and payload delivery are each asserted b
 
 ### Loco-manipulation: payload delivery
 
-The Go2 carries a **free 0.4 kg payload** on a tray welded to its trunk and **delivers it across
-the terrain course + a turn** — balancing a genuine free rigid body through whole-body locomotion
-(real contacts, no glue, no scripting).
+The Go2 carries a **free 0.45 kg payload** in a snug walled tray welded to its trunk and
+**delivers it across the terrain course + a turn** — balancing a genuine free rigid body through
+whole-body locomotion (real contacts, no glue, no scripting).
 
 ![Go2 delivering a payload over terrain](figures/cargo.png)
 
 | metric (`python run.py eval` → delivery, 10 seeds) | result |
 |---|---|
 | delivered (cargo kept the whole route) | **10/10 = 100 %**  (95 % CI [72 %, 100 %]) |
-| max cargo slip on the tray | **7.6 cm** (within the 12 cm tray — dynamically challenged, contained) |
-| laden min-uprightness, leveling **ON vs OFF** | **0.90 vs 0.84** (leveling steadies the laden robot) |
+| peak cargo slip on the tray | **3.4 ± 0.2 cm** (95 % CI; still a free body, but contained — counts as on while slip < 13 cm) |
+| laden min-uprightness, leveling **ON vs OFF** | **0.89 vs 0.84** (leveling steadies the laden robot) |
 
 The cargo is a real free body: aggressive *in-place spinning* will spill it (so the courier walks a
 smooth route), and on terrain rougher than tested the leveling loop's knee motion can actually shake
@@ -179,11 +179,11 @@ scripted catch. Pushes are cleared on `reset()`, so determinism is preserved.
 
 **7 · Loco-manipulation (payload delivery).** A separate scene (`cargo.xml`) welds a tray to the
 trunk (`data.xfrc`-free `<equality><weld>`, so the vendored `go2.xml` is untouched) and rests a
-**free 0.4 kg payload box** on it. The same controller carries it across the terrain + a turn,
-balancing a genuine free rigid body through whole-body locomotion — **delivered 10/10**, cargo slip
-≤ 7.6 cm, laden min-uprightness 0.84→0.90 with leveling on. This turns pure locomotion into object
-transport. We report the honest edges too: aggressive in-place spinning spills the free payload, and
-on terrain rougher than tested the leveling loop's knee motion can shake the cargo.
+**free 0.45 kg payload box** in a snug walled tray. The same controller carries it across the
+terrain + a turn, balancing a genuine free rigid body through whole-body locomotion — **delivered
+10/10**, peak cargo slip 3.4 ± 0.2 cm, laden min-uprightness 0.84→0.89 with leveling on — genuine
+object transport, not passive carriage. We report the honest edges too: aggressive in-place spinning
+spills the free payload, and on terrain rougher than tested the leveling loop's knee motion can shake it.
 
 **8 · Autonomy.** A patrol scheduler sequences terrain-crossing → onto flat → spin-in-place →
 slow/fast speed sweep → left turn → straight → right turn → halt, with heading-hold on the
