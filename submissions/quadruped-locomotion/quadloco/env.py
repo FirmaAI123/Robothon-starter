@@ -1,7 +1,8 @@
-"""QuadLoco environment: a Unitree Go2 quadruped on flat ground, driven by real
-torque actuators with full physics (contacts, friction) — every frame advances
-``mj_step``, not a kinematic puppet. Exposes an IMU/proprioception observation,
-foot-contact detection, rendering, and per-step hooks for the recorder/eval.
+"""QuadLoco environment: a Unitree Go2 quadruped on a terrain course (ramp, rough
+heightfield, step), driven by real torque actuators with full physics (contacts,
+friction) — every frame advances ``mj_step``, not a kinematic puppet. Exposes an
+IMU/proprioception observation, foot-contact detection against all ground geoms,
+external-push (``xfrc_applied``) disturbances, rendering, and per-step hooks.
 """
 from __future__ import annotations
 
@@ -14,6 +15,8 @@ import numpy as np
 
 ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "assets")
 SCENE = os.path.join(ASSETS, "scene.xml")
+FLAT = os.path.join(ASSETS, "flat.xml")     # terrain-free scene for speed-control eval
+CARGO = os.path.join(ASSETS, "cargo.xml")   # loco-manipulation: carry a payload on a tray
 
 LEGS = ["FL", "FR", "RL", "RR"]
 JOINTS = [f"{lg}_{j}" for lg in LEGS for j in ("hip", "thigh", "calf")]  # 12, actuator order
@@ -26,6 +29,7 @@ class EnvConfig:
     randomize: bool = False
     mass_jitter: float = 0.0      # fractional trunk-mass jitter
     yaw_jitter: float = 0.0       # rad of initial heading jitter
+    friction_jitter: float = 0.0  # fractional ground-friction jitter
     render_w: int = 1280
     render_h: int = 720
 
@@ -41,20 +45,39 @@ class QuadEnv:
         self.act = np.array([self._aid(j) for j in JOINTS])
         self.foot_gid = {lg: self._gid(lg) for lg in LEGS}
         self.floor_gid = self._gid("floor")
+        # every ground geom a foot can stand on (floor + terrain), so contact
+        # sensing works on the ramp / rough patch / step, not only the flat floor.
+        self.terrain_gids = {self._gid(n) for n in ("floor", "ramp", "rough", "step")} - {-1}
         self.base_bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "base")
+        # optional cargo (loco-manipulation): a tray welded to the trunk + a free payload
+        self.tray_bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "tray")
+        self.payload_bid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_BODY, "payload")
+        self.has_cargo = self.tray_bid >= 0 and self.payload_bid >= 0
         self._renderer: Optional[mujoco.Renderer] = None
         self._hooks: list = []
-        self._fill_heightfield()
+        self._push_force = np.zeros(3)
+        self._push_steps = 0
+        self._fill_heightfield(12345 if not self.cfg.randomize else self.cfg.seed)
+        if self.cfg.randomize and self.cfg.friction_jitter > 0:
+            self._randomize_friction()
         self.reset()
 
-    def _fill_heightfield(self):
+    def _randomize_friction(self):
+        """Jitter the ground sliding friction (per terrain geom) for robustness eval."""
+        for g in self.terrain_gids:
+            f = 1.0 + self.rng.uniform(-self.cfg.friction_jitter, self.cfg.friction_jitter)
+            self.model.geom_friction[g, 0] *= f
+
+    def _fill_heightfield(self, seed=12345):
         """Procedurally fill the 'rough' heightfield with smooth random terrain
-        (deterministic by seed) so the patch is genuinely uneven, not flat."""
+        (deterministic by seed) so the patch is genuinely uneven, not flat. The
+        seed varies the bumps per trial under randomization (same seed -> same
+        terrain, preserving determinism)."""
         hid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_HFIELD, "rough")
         if hid < 0:
             return
         nr, nc = int(self.model.hfield_nrow[hid]), int(self.model.hfield_ncol[hid])
-        rng = np.random.default_rng(12345)
+        rng = np.random.default_rng(seed)
         coarse = rng.random((nr // 6 + 2, nc // 6 + 2))
         big = np.repeat(np.repeat(coarse, 6, 0), 6, 1)[:nr, :nc]
         for _ in range(3):                      # smooth
@@ -92,8 +115,22 @@ class QuadEnv:
         self._hooks.clear()
 
     # ---- lifecycle ----
+    def _place_cargo(self):
+        """Seat the tray on the trunk's back and the payload on the tray (the padded
+        keyframe zeroes their free-joint qpos, so we position them explicitly)."""
+        bp = self.data.xpos[self.base_bid].copy()
+        for bid, dz in ((self.tray_bid, 0.055), (self.payload_bid, 0.10)):
+            adr = self.model.jnt_qposadr[self.model.body_jntadr[bid]]
+            self.data.qpos[adr:adr + 3] = [bp[0], bp[1], bp[2] + dz]
+            self.data.qpos[adr + 3:adr + 7] = [1.0, 0.0, 0.0, 0.0]
+
     def reset(self) -> Dict:
         mujoco.mj_resetDataKeyframe(self.model, self.data, 0)   # "home" standing pose
+        self.data.xfrc_applied[:] = 0.0       # clear any external pushes (determinism)
+        self._push_steps = 0
+        if self.has_cargo:
+            mujoco.mj_forward(self.model, self.data)   # get base pose, then seat cargo
+            self._place_cargo()
         if self.cfg.randomize:
             if self.cfg.mass_jitter > 0:
                 f = 1.0 + self.rng.uniform(-self.cfg.mass_jitter, self.cfg.mass_jitter)
@@ -106,9 +143,26 @@ class QuadEnv:
 
     def step(self, n: int = 1):
         for _ in range(n):
+            if self._push_steps > 0:                       # external disturbance
+                self.data.xfrc_applied[self.base_bid, :3] = self._push_force
+                self._push_steps -= 1
+                if self._push_steps == 0:
+                    self.data.xfrc_applied[self.base_bid, :3] = 0.0
             mujoco.mj_step(self.model, self.data)
             for h in self._hooks:
                 h(self)
+
+    # ---- external disturbance (closed-loop recovery testing) ----
+    def apply_push(self, force_xyz, steps: int):
+        """Apply a constant external force (N) to the trunk for the next ``steps``
+        physics steps — a real ``data.xfrc_applied`` impulse, used to test the
+        controller's closed-loop recovery."""
+        self._push_force = np.asarray(force_xyz, dtype=float)
+        self._push_steps = int(steps)
+
+    @property
+    def pushing(self) -> bool:
+        return self._push_steps > 0
 
     # ---- control ----
     def set_motor_torques(self, tau: np.ndarray):
@@ -144,6 +198,22 @@ class QuadEnv:
         zaxis = self.data.xmat[self.base_bid].reshape(3, 3)[:, 2]
         return float(zaxis[2])
 
+    # ---- cargo (loco-manipulation) ----
+    def payload_offset(self):
+        """(horizontal offset, height above tray) of the payload vs the tray center."""
+        if not self.has_cargo:
+            return (0.0, 0.0)
+        p = self.data.xpos[self.payload_bid]
+        t = self.data.xpos[self.tray_bid]
+        return float(np.hypot(p[0] - t[0], p[1] - t[1])), float(p[2] - t[2])
+
+    def payload_on(self) -> bool:
+        """True while the payload is still riding on the tray (not slid/fallen off)."""
+        if not self.has_cargo:
+            return True
+        horiz, dz = self.payload_offset()
+        return horiz < 0.13 and dz > 0.0
+
     def foot_contacts(self):
         c = {lg: 0.0 for lg in LEGS}
         for i in range(self.data.ncon):
@@ -151,7 +221,7 @@ class QuadEnv:
             g1, g2 = con.geom1, con.geom2
             for lg in LEGS:
                 fg = self.foot_gid[lg]
-                if (g1 == fg and g2 == self.floor_gid) or (g2 == fg and g1 == self.floor_gid):
+                if (g1 == fg and g2 in self.terrain_gids) or (g2 == fg and g1 in self.terrain_gids):
                     c[lg] = 1.0
         return np.array([c[lg] for lg in LEGS])
 

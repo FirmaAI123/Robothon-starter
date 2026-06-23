@@ -1,6 +1,7 @@
 <mujoco model="quadloco_scene">
   <!-- Unitree Go2 (BSD-3, vendored). compiler + actuators + keyframe live in go2.xml -->
   <include file="go2/go2.xml"/>
+  <option timestep="0.002"/>   <!-- explicit 2 ms / 500 Hz physics step -->
 
   <statistic center="0 0 0.2" extent="1.2"/>
 
@@ -28,8 +29,7 @@
     <geom name="floor" type="plane" size="0 0 0.05" material="grid" friction="1.0 0.02 0.001"/>
 
     <!-- terrain course along +x: a gentle ramp, a continuous ROUGH heightfield
-         patch (±3 cm), then a low step. The open-loop CPG trot traverses all of
-         it with no terrain feedback. -->
+         patch (±3 cm), then a low step, traversed under closed-loop IMU leveling. -->
     <geom name="ramp" type="box" size="0.45 0.6 0.03" pos="1.0 0 0.0" euler="0 -0.12 0"
       material="terr" friction="1.0 0.02 0.001"/>
     <geom name="rough" type="hfield" hfield="rough" pos="2.6 0 0.0"

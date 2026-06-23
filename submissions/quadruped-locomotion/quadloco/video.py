@@ -42,6 +42,7 @@ class Recorder:
         self._last_xy = env.base_xy().copy()
         self._last_t = 0.0
         self._speed = 0.0
+        self._push_flash = 0
         self.fonts = {s: _font(s) for s in (20, 26, 34, 54)}
         env.add_step_hook(self._on_step)
 
@@ -69,32 +70,53 @@ class Recorder:
         d.text((192, 20), "Physics-Based Quadruped Locomotion · Go2 · MuJoCo",
                font=self.fonts[20], fill=WHITE)
         d.text((W - 150, 18), f"t = {o['time']:5.2f}s", font=self.fonts[20], fill=DIM)
+        if getattr(self.env, "has_cargo", False):
+            ok = self.env.payload_on()
+            d.text((W - 200, 64), f"CARGO: {'ON TRAY' if ok else 'LOST'}",
+                   font=self.fonts[26], fill=GREEN if ok else (224, 92, 72))
 
         d.rectangle([0, H - 52, W, H], fill=(*PANEL, 210))
         d.text((20, H - 44), self.phase, font=self.fonts[26], fill=WHITE)
 
+        # external-push banner (flashes while a disturbance is applied / recovering)
+        if getattr(self.env, "pushing", False):
+            self._push_flash = 45
+        if self._push_flash > 0:
+            self._push_flash -= 1
+            msg = "EXTERNAL PUSH → RECOVERING"
+            tw = d.textlength(msg, font=self.fonts[34])
+            d.rectangle([(W - tw) / 2 - 18, 70, (W + tw) / 2 + 18, 116], fill=(*ACCENT, 230))
+            d.text(((W - tw) / 2, 76), msg, font=self.fonts[34], fill=(20, 12, 10))
+
         # left telemetry panel
         px, py = 18, 78
-        d.rectangle([px, py, px + 250, py + 196], fill=(*PANEL, 170))
+        d.rectangle([px, py, px + 250, py + 214], fill=(*PANEL, 170))
         dist = float(np.linalg.norm(xy - self.x0))
         hd = np.degrees(o["heading"])
+        pitch_deg = abs(np.degrees(self.ctl.imu_pitch_roll()[0]))
+        fb_on = getattr(self.ctl, "terrain_fb", False)
         d.text((px + 12, py + 10), f"distance   {dist:5.2f} m", font=self.fonts[20], fill=WHITE)
-        d.text((px + 12, py + 38), f"speed      {self._speed:5.2f} m/s", font=self.fonts[20], fill=WHITE)
-        d.text((px + 12, py + 66), f"heading    {hd:+5.0f} deg", font=self.fonts[20], fill=WHITE)
+        d.text((px + 12, py + 36), f"speed      {self._speed:5.2f} m/s", font=self.fonts[20], fill=WHITE)
+        d.text((px + 12, py + 62), f"heading    {hd:+5.0f} deg", font=self.fonts[20], fill=WHITE)
+        # trunk pitch + closed-loop terrain-leveling indicator
+        d.text((px + 12, py + 88), f"trunk pitch {pitch_deg:4.1f} deg", font=self.fonts[20], fill=WHITE)
+        d.ellipse([px + 200, py + 90, px + 216, py + 106], fill=GREEN if fb_on else DIM)
+        d.text((px + 12, py + 110), "terrain leveling (IMU)", font=self.fonts[20],
+               fill=GREEN if fb_on else DIM)
         # uprightness bar
         up = o["upright"]
-        d.text((px + 12, py + 96), "uprightness", font=self.fonts[20], fill=WHITE)
-        d.rectangle([px + 150, py + 100, px + 150 + 80, py + 114], outline=DIM)
-        d.rectangle([px + 150, py + 100, px + 150 + int(max(0, up) * 80), py + 114],
+        d.text((px + 12, py + 136), "uprightness", font=self.fonts[20], fill=WHITE)
+        d.rectangle([px + 150, py + 140, px + 150 + 80, py + 154], outline=DIM)
+        d.rectangle([px + 150, py + 140, px + 150 + int(max(0, up) * 80), py + 154],
                     fill=GREEN if up > 0.6 else ACCENT)
         # foot stance/swing dots
-        d.text((px + 12, py + 130), "feet (● stance)", font=self.fonts[20], fill=WHITE)
+        d.text((px + 12, py + 166), "feet (● stance)", font=self.fonts[20], fill=WHITE)
         fc = o["foot_contacts"]
         for i, lg in enumerate(LEGS):
             cx = px + 30 + i * 56
             col = GREEN if fc[i] > 0.5 else DIM
-            d.ellipse([cx, py + 158, cx + 16, py + 174], fill=col)
-            d.text((cx - 4, py + 176), lg, font=self.fonts[20], fill=DIM)
+            d.ellipse([cx, py + 192, cx + 16, py + 208], fill=col)
+            d.text((cx - 4, py + 210), lg, font=self.fonts[20], fill=DIM)
         return np.asarray(img)
 
     def title_card(self, lines: List[Tuple[str, int, tuple]], n=40):

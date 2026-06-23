@@ -3,10 +3,13 @@
 
     python run.py walk            # headless autonomous patrol, prints metrics
     python run.py record [out]    # render the annotated demo video
-    python run.py eval [N]        # randomized robustness evaluation (Wilson CIs)
+    python run.py eval [N]        # full eval: robustness + ablation + speed + push (CIs)
+    python run.py figures         # regenerate README figures from eval data
     python run.py info            # model / sensor summary
 """
 import sys
+
+PATROL_SECS = 28.5
 
 
 def main(argv=None):
@@ -19,11 +22,11 @@ def main(argv=None):
         from quadloco.controller import TrotController, patrol_command
         env = QuadEnv(EnvConfig(seed=0)); env.reset()
         ctl = TrotController(env); x0 = env.base_xy().copy(); min_up = 1.0
-        for i in range(int(23.0 / env.dt)):
+        for i in range(int(PATROL_SECS / env.dt)):
             t = i * env.dt; fwd, turn, _ = patrol_command(t)
             ctl.drive(t, fwd, turn); env.step(1); min_up = min(min_up, env.upright())
         dist = float(np.linalg.norm(env.base_xy() - x0))
-        print(f"patrol 23s: traversed {dist:.2f} m, final height {env.base_height():.2f} m, "
+        print(f"patrol {PATROL_SECS:.0f}s: traversed {dist:.2f} m, final height {env.base_height():.2f} m, "
               f"min uprightness {min_up:.2f}, upright={min_up > 0.5}")
         return 0 if min_up > 0.5 else 1
 
@@ -32,9 +35,25 @@ def main(argv=None):
         record_demo(argv[1] if len(argv) > 1 else "demo.mp4")
         return 0
 
+    if mode == "record-cargo":
+        from quadloco.record import record_cargo
+        record_cargo(argv[1] if len(argv) > 1 else "demo_cargo.mp4")
+        return 0
+
     if mode == "eval":
-        from quadloco.evaluate import evaluate
-        evaluate(trials=int(argv[1]) if len(argv) > 1 else 20, out_json="eval_results.json")
+        from quadloco.evaluate import (evaluate, ablation_terrain_feedback,
+                                       speed_tracking, push_recovery, payload_delivery)
+        n = int(argv[1]) if len(argv) > 1 else 20
+        evaluate(trials=n, out_json="eval_results.json")
+        ablation_terrain_feedback(trials=n, out_json="eval_results.json")
+        speed_tracking()
+        push_recovery(out_json="eval_results.json")
+        payload_delivery(out_json="eval_results.json")
+        return 0
+
+    if mode == "figures":
+        from quadloco.figures import make_all
+        make_all()
         return 0
 
     if mode == "info":

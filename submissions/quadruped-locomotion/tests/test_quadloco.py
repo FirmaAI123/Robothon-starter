@@ -36,7 +36,7 @@ def test_walks_forward():
     x0 = env.base_xy()[0]
     min_up = 1.0
     for i in range(int(8.0 / env.dt)):
-        ctl.act(i * env.dt, forward=1.0)
+        ctl.drive(i * env.dt, 1.0, 0.0)   # production path: gait + heading-hold + terrain feedback
         env.step(1)
         min_up = min(min_up, env.upright())
     assert env.base_xy()[0] - x0 > 1.0, "robot did not walk forward"
@@ -66,6 +66,46 @@ def test_heading_hold_reduces_drift():
             env.step(1)
         d = abs(env.base_xy()[1] - y0); env.close(); return d
     assert drift(True) < drift(False) - 0.3, "heading-hold did not reduce drift"
+
+
+def test_terrain_feedback_levels_trunk():
+    """Closed-loop terrain feedback (IMU active leveling) keeps the trunk flatter
+    over the terrain course than the same gait with the loop ablated."""
+    from quadloco.evaluate import walk_trial
+    on = np.mean([walk_trial(s, 8.0, terrain_fb=True)["pitch"] for s in range(4)])
+    off = np.mean([walk_trial(s, 8.0, terrain_fb=False)["pitch"] for s in range(4)])
+    assert on < off, f"terrain feedback should reduce trunk pitch ({on:.1f} !< {off:.1f})"
+
+
+def test_recovers_from_push():
+    """The closed-loop gait survives a bounded lateral impulse (real xfrc_applied)
+    and recovers uprightness — disturbance rejection, not luck."""
+    env = QuadEnv(EnvConfig(seed=1)); env.reset(); ctl = TrotController(env)
+    for i in range(int(3.0 / env.dt)):
+        ctl.drive(i * env.dt, 1.0, 0.0); env.step(1)
+    env.apply_push([0.0, 120.0, 0.0], int(0.10 / env.dt))   # 120 N lateral, 0.1 s
+    for i in range(int(3.0 / env.dt)):
+        ctl.drive(3.0 + i * env.dt, 1.0, 0.0); env.step(1)
+    assert env.base_height() > 0.15, "fell after a 120 N lateral impulse"
+    assert env.upright() > 0.7, "did not recover uprightness after the push"
+    env.close()
+
+
+def test_speed_control_monotone():
+    """Commanded forward maps monotonically to measured speed (controllable, upright)."""
+    from quadloco.evaluate import speed_tracking
+    res = speed_tracking(cmds=(0.4, 1.6), trials=2)
+    assert res[1]["speed_mps"] > res[0]["speed_mps"] + 0.05, "faster command not faster"
+    assert all(r["min_upright"] > 0.5 for r in res), "fell during speed sweep"
+
+
+def test_payload_delivery():
+    """Loco-manipulation: the Go2 carries a free payload across the terrain + a turn
+    without dropping it or falling — real free-body cargo, balanced by locomotion."""
+    from quadloco.evaluate import _delivery_trial
+    r = _delivery_trial(0, terrain_fb=True)
+    assert r["delivered"], "payload was dropped during delivery"
+    assert r["min_up"] > 0.5, "robot fell while carrying cargo"
 
 
 def test_determinism():
