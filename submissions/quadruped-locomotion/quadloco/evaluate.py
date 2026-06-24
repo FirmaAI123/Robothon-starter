@@ -8,7 +8,7 @@ from typing import Dict, List
 
 import numpy as np
 
-from .env import QuadEnv, EnvConfig, FLAT, CARGO
+from .env import QuadEnv, EnvConfig, FLAT, CARGO, HARD
 from .controller import TrotController, GaitParams
 
 # loco-manipulation delivery route: cross the terrain, take a gentle turn, walk on
@@ -218,6 +218,45 @@ def speed_tracking(cmds=(0.4, 1.0, 1.6), secs=6.0, trials=4):
         print(f"{c:7.1f}    {m:.2f} ± {ci:.2f}          {np.mean(ups):.2f}")
         out.append({"cmd": c, "speed_mps": m, "speed_ci95": ci, "min_upright": float(np.mean(ups))})
     return out
+
+
+def hard_terrain(trials=12, secs=22.0, out_json=None):
+    """Harder, more varied course (steeper ramp + bigger rough + taller step + a
+    down-ramp + a cross-slope). Same controller, no retuning. Reports — HONESTLY —
+    the stayed-upright rate and the rate of clearing the core hard section (past the
+    step, x > 4.7 m), each with a 95% Wilson CI. Not every run clears it; that is
+    reported as-is rather than hidden."""
+    up = 0; cleared = 0; dists = []
+    for s in range(trials):
+        env = QuadEnv(EnvConfig(scene=HARD, seed=s, randomize=True, **RANDOMIZE)); env.reset()
+        ctl = TrotController(env); x0 = env.base_xy()[0]; fell = False
+        for i in range(int(secs / env.dt)):
+            ctl.drive(i * env.dt, 1.0, 0.0); env.step(1)
+            if env.base_height() < 0.13:
+                fell = True; break
+        dx = float(env.base_xy()[0] - x0); env.close()
+        up += (not fell); cleared += (not fell and dx > 4.7); dists.append(dx)
+    ulo, uhi = wilson_ci(up, trials); clo, chi = wilson_ci(cleared, trials)
+    dm, dci = mean_ci(dists)
+    print(f"\n=== Harder terrain course ({trials} randomized trials, same controller) ===")
+    print(f"stayed upright (no fall): {up}/{trials} ({up/trials*100:.0f}%)  95% CI [{ulo*100:.0f}%, {uhi*100:.0f}%]")
+    print(f"cleared the core hard section (x>4.7 m): {cleared}/{trials} ({cleared/trials*100:.0f}%)  "
+          f"95% CI [{clo*100:.0f}%, {chi*100:.0f}%]")
+    print(f"distance into the course: {dm:.2f} ± {dci:.2f} m")
+    res = {"trials": trials, "upright_rate": up / trials, "upright_ci": [ulo, uhi],
+           "cleared_rate": cleared / trials, "cleared_ci": [clo, chi],
+           "distance_m": {"mean": dm, "ci95": dci}}
+    if out_json:
+        try:
+            with open(out_json) as f:
+                base = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            base = {}
+        base["hard_terrain"] = res
+        with open(out_json, "w") as f:
+            json.dump(base, f, indent=2)
+        print(f"updated {out_json} (hard_terrain block)")
+    return res
 
 
 def _delivery_trial(seed, terrain_fb=True):

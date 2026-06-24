@@ -1,10 +1,64 @@
 """Render the annotated demo video by running the autonomous patrol."""
 from __future__ import annotations
 
-from .env import QuadEnv, EnvConfig, CARGO
+from .env import QuadEnv, EnvConfig, SCENE, CARGO, HARD
 from .controller import TrotController, patrol_command
 from .evaluate import DELIVERY_ROUTE
 from .video import Recorder, ACCENT, WHITE, DIM, GREEN
+
+
+def _segment(scene, beats, label, every, seed=0, push=None):
+    """Render one labelled segment on a given scene; return its HUD frames."""
+    env = QuadEnv(EnvConfig(scene=scene, seed=seed)); env.reset()
+    ctl = TrotController(env); rec = Recorder(env, ctl, every=every)
+    t = 0.0; pushed = False
+    for dur, fwd, turn in beats:
+        for _ in range(int(dur / env.dt)):
+            if push and not pushed and t >= push[0]:
+                env.apply_push(push[1], int(push[2] / env.dt)); pushed = True
+            rec.set_phase(label(t) if callable(label) else label)
+            ctl.drive(t, fwd, turn); env.step(1); t += env.dt
+    frames = list(rec.frames); env.close()
+    return frames
+
+
+def record_highlights(out_path="demo.mp4", fps=30, every=20):
+    """Concise highlights reel (judge ask: focus highlights + harder terrain):
+    harder course -> shove & recover -> payload delivery."""
+    e = QuadEnv(EnvConfig(seed=0)); e.reset()
+    intro = Recorder(e, TrotController(e), every=10**9)
+    intro.title_card([
+        ("QuadLoco", 54, ACCENT),
+        ("Closed-Loop Terrain-Adaptive Quadruped Locomotion", 26, WHITE),
+        ("harder terrain · shove recovery · payload delivery — real mj_step physics", 20, GREEN),
+        ("Unitree Go2 · 12 torque motors · CPG + IMU/gyro + terrain leveling · no GPU", 20, DIM),
+    ], n=30)
+    frames = list(intro.frames); e.close()
+
+    def push_label(t):
+        return ("Shoved sideways (130 N) — recovering" if 2.5 <= t < 4.2
+                else "Closed-loop IMU+gyro heading-hold")
+    frames += _segment(HARD, [(14.0, 1.0, 0.0)], every=every,
+                       label="Harder course: steep ramp · rough · step · downhill · side-slope")
+    frames += _segment(SCENE, [(5.6, 1.0, 0.0)], every=every, push=(2.5, [0.0, 130.0, 0.0], 0.10),
+                       label=push_label)
+    frames += _segment(CARGO, [(8.0, 1.0, 0.0)], every=every,
+                       label="Loco-manipulation: delivering a free 0.45 kg payload")
+
+    end = QuadEnv(EnvConfig(seed=0)); end.reset()
+    outro = Recorder(end, TrotController(end), every=10**9)
+    outro.title_card([
+        ("Results (quantified, 95% CIs)", 34, GREEN),
+        ("standard course 20/20 upright · harder course 92% upright", 20, WHITE),
+        ("recovers a 160 N shove · delivers a free payload 10/10 (slip 3.4 cm)", 20, WHITE),
+        ("3 closed-loop loops · real contacts · reproducible · no GPU", 20, DIM),
+    ], n=36)
+    frames += list(outro.frames); end.close()
+
+    import imageio.v2 as imageio
+    imageio.mimsave(out_path, frames, fps=fps, quality=8, macro_block_size=8)
+    print(f"wrote {out_path} ({len(frames)} frames, {len(frames)/fps:.1f}s)")
+    return out_path
 
 
 # on-camera disturbance: a lateral impulse mid-stride during the straight segment

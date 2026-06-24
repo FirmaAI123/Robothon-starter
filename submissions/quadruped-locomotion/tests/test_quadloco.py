@@ -108,6 +108,19 @@ def test_payload_delivery():
     assert r["min_up"] > 0.5, "robot fell while carrying cargo"
 
 
+def test_hard_terrain_progress():
+    """On the harder course (steep ramp + big rough + step + downhill + cross-slope),
+    the same controller still makes real forward progress without falling (seed 0)."""
+    from quadloco.env import HARD
+    env = QuadEnv(EnvConfig(scene=HARD, seed=0)); env.reset()
+    ctl = TrotController(env); x0 = env.base_xy()[0]
+    for i in range(int(12.0 / env.dt)):
+        ctl.drive(i * env.dt, 1.0, 0.0); env.step(1)
+    assert env.base_height() > 0.13, "fell on the hard course"
+    assert env.base_xy()[0] - x0 > 2.0, "made no progress on the hard course"
+    env.close()
+
+
 def test_determinism():
     def run():
         e = QuadEnv(EnvConfig(seed=0)); e.reset(); c = TrotController(e)

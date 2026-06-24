@@ -115,10 +115,30 @@ def make_cargo_hero(path=None):
     return path
 
 
+def make_hard_hero(path=None):
+    """Grab a frame of the Go2 on the harder course."""
+    from .env import HARD
+    from .video import Recorder
+    os.makedirs(FIGDIR, exist_ok=True)
+    path = path or os.path.join(FIGDIR, "hard.png")
+    env = QuadEnv(EnvConfig(scene=HARD, seed=0)); env.reset()
+    ctl = TrotController(env)
+    rec = Recorder(env, ctl, every=10_000)
+    rec.set_phase("Harder course: steep ramp · rough · step · downhill · side-slope")
+    for i in range(int(3.2 / env.dt)):          # climbing the steeper ramp
+        ctl.drive(i * env.dt, 1.0, 0.0); env.step(1)
+    from PIL import Image
+    Image.fromarray(rec._compose()).save(path)
+    env.close()
+    print(f"wrote {path}")
+    return path
+
+
 def make_all():
     make_hero()
     make_ablation_plot()
     make_cargo_hero()
+    make_hard_hero()
 
 
 if __name__ == "__main__":

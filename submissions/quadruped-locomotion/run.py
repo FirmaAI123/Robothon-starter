@@ -31,8 +31,13 @@ def main(argv=None):
         return 0 if min_up > 0.5 else 1
 
     if mode == "record":
+        from quadloco.record import record_highlights
+        record_highlights(argv[1] if len(argv) > 1 else "demo.mp4")
+        return 0
+
+    if mode == "record-patrol":
         from quadloco.record import record_demo
-        record_demo(argv[1] if len(argv) > 1 else "demo.mp4")
+        record_demo(argv[1] if len(argv) > 1 else "demo_patrol.mp4")
         return 0
 
     if mode == "record-cargo":
@@ -42,13 +47,15 @@ def main(argv=None):
 
     if mode == "eval":
         from quadloco.evaluate import (evaluate, ablation_terrain_feedback,
-                                       speed_tracking, push_recovery, payload_delivery)
+                                       speed_tracking, push_recovery, payload_delivery,
+                                       hard_terrain)
         n = int(argv[1]) if len(argv) > 1 else 20
         evaluate(trials=n, out_json="eval_results.json")
         ablation_terrain_feedback(trials=n, out_json="eval_results.json")
         speed_tracking()
         push_recovery(out_json="eval_results.json")
         payload_delivery(out_json="eval_results.json")
+        hard_terrain(out_json="eval_results.json")
         return 0
 
     if mode == "figures":
