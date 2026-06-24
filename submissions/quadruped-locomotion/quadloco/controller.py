@@ -138,6 +138,26 @@ class TrotController:
         fcmd = float(np.clip(kp * (v_set - v) + ki * self._v_integ, 0.0, 2.5))
         self.drive(t, fcmd, turn_cmd)
 
+    # ---- closed-loop go-to-goal navigation (autonomous mission, self-verifying) ----
+    def steer_to(self, t: float, goal_xy, reach: float = 0.25, k: float = 1.0):
+        """Fifth closed-loop, on **position**: steer the heading toward a target waypoint
+        (from `base_xy`/`heading`) and walk until within `reach` m, slowing as it nears.
+        Returns the current distance to the goal — the robot self-verifies arrival when it
+        drops below `reach`. Heading-hold + terrain-leveling still run underneath."""
+        x, y = self.env.base_xy()
+        dx, dy = goal_xy[0] - x, goal_xy[1] - y
+        d = float(np.hypot(dx, dy))
+        err = (np.arctan2(dy, dx) - self.env.heading() + np.pi) % (2 * np.pi) - np.pi
+        if d < reach:
+            fwd = 0.0                       # arrived
+        elif abs(err) > 0.6:
+            fwd = 0.15                      # badly mis-aligned -> turn (nearly) in place first
+        else:
+            fwd = 1.0 if d > 0.6 else 0.5   # aligned -> walk, slow near the goal
+        turn = float(np.clip(-k * err, -0.22, 0.22))
+        self.drive(t, fwd, turn)
+        return d
+
     # ---- gait phase (for HUD) ----
     def stance_swing(self, t: float):
         return {lg: ("swing" if np.sin(2 * np.pi * self.p.freq * t + PHASE[lg]) > 0

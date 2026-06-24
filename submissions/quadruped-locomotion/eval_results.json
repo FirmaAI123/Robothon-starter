@@ -157,5 +157,19 @@
     ],
     "drift_clean_m": 0.1540874743579748,
     "drift_noisy_m": 0.12450933530887846
+  },
+  "goto_mission": {
+    "trials": 10,
+    "waypoints": 3,
+    "mission_complete_rate": 1.0,
+    "complete_ci": [
+      0.7224598312333834,
+      1.0
+    ],
+    "waypoints_reached": 30,
+    "arrival_precision_m": {
+      "mean": 0.24984728685489674,
+      "ci95": 3.389932646794336e-05
+    }
   }
 }

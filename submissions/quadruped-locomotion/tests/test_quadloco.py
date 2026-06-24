@@ -128,6 +128,19 @@ def test_robust_to_sensor_noise():
     env.close()
 
 
+def test_goto_navigation():
+    """Closed-loop go-to-goal: the robot steers to and reaches an off-axis waypoint."""
+    from quadloco.env import FLAT
+    env = QuadEnv(EnvConfig(scene=FLAT, seed=3)); env.reset()
+    ctl = TrotController(env); reached = False
+    for i in range(int(18.0 / env.dt)):
+        d = ctl.steer_to(i * env.dt, (2.0, 1.0)); env.step(1)
+        if d < 0.25:
+            reached = True; break
+    assert reached, "did not reach the goal waypoint"
+    env.close()
+
+
 def test_determinism():
     def run():
         e = QuadEnv(EnvConfig(seed=0)); e.reset(); c = TrotController(e)

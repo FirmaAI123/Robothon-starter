@@ -17,6 +17,7 @@ ASSETS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 SCENE = os.path.join(ASSETS, "scene.xml")
 FLAT = os.path.join(ASSETS, "flat.xml")     # terrain-free scene for speed-control eval
 CARGO = os.path.join(ASSETS, "cargo.xml")   # loco-manipulation: carry a payload on a tray
+MISSION_SCENE = os.path.join(ASSETS, "mission.xml")  # flat + goal markers for the go-to-goal mission demo
 
 LEGS = ["FL", "FR", "RL", "RR"]
 JOINTS = [f"{lg}_{j}" for lg in LEGS for j in ("hip", "thigh", "calf")]  # 12, actuator order

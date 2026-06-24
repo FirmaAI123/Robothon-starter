@@ -40,15 +40,21 @@ def main(argv=None):
         record_cargo(argv[1] if len(argv) > 1 else "demo_cargo.mp4")
         return 0
 
+    if mode == "record-mission":
+        from quadloco.record import record_mission
+        record_mission(argv[1] if len(argv) > 1 else "demo_mission.mp4")
+        return 0
+
     if mode == "eval":
         from quadloco.evaluate import (evaluate, ablation_terrain_feedback, speed_tracking,
-                                       speed_setpoint_tracking, push_recovery,
+                                       speed_setpoint_tracking, goto_mission, push_recovery,
                                        payload_delivery, noise_robustness)
         n = int(argv[1]) if len(argv) > 1 else 20
         evaluate(trials=n, out_json="eval_results.json")
         ablation_terrain_feedback(trials=n, out_json="eval_results.json")
         speed_tracking()
         speed_setpoint_tracking(out_json="eval_results.json")
+        goto_mission(out_json="eval_results.json")
         push_recovery(out_json="eval_results.json")
         payload_delivery(out_json="eval_results.json")
         noise_robustness(out_json="eval_results.json")

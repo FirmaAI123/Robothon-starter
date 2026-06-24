@@ -339,11 +339,59 @@ def noise_robustness(trials=12, secs=10.0, noise=1.5, out_json=None):
     return res
 
 
+# autonomous mission: a waypoint patrol (out, across, return home)
+MISSION = [(2.5, 1.2), (4.0, -1.0), (0.3, 0.0)]
+
+
+def goto_mission(trials=10, leg_secs=18.0, out_json=None):
+    """Autonomous go-to-goal mission (5th loop, closed on position): the robot navigates
+    a 3-waypoint patrol (out → across → home) purely on `base_xy`/`heading`, self-verifying
+    arrival at each (within 0.25 m). Reports the mission-complete rate (all 3 reached, Wilson
+    CI) and waypoints reached (each within the 0.25 m goal gate) — autonomy with self-verification."""
+    complete = 0; wp_reached = 0; arr_err = []; ups = []
+    for s in range(trials):
+        env = QuadEnv(EnvConfig(scene=FLAT, seed=300 + s, randomize=True, **RANDOMIZE)); env.reset()
+        ctl = TrotController(env); t = 0.0; mu = 1.0; reached = 0
+        for gx, gy in MISSION:
+            arrived = False
+            for _ in range(int(leg_secs / env.dt)):
+                d = ctl.steer_to(t, (gx, gy)); env.step(1); t += env.dt; mu = min(mu, env.upright())
+                if d < 0.25:
+                    arrived = True; arr_err.append(d); break
+                if env.base_height() < 0.15:
+                    break
+            if not arrived:
+                break
+            reached += 1
+        wp_reached += reached; complete += (reached == len(MISSION)); ups.append(mu); env.close()
+    lo, hi = wilson_ci(complete, trials)
+    em, eci = mean_ci(arr_err)
+    print(f"\n=== Autonomous go-to-goal mission ({trials} seeds, {len(MISSION)} waypoints each) ===")
+    print(f"mission complete (all {len(MISSION)} waypoints reached): {complete}/{trials} "
+          f"({complete/trials*100:.0f}%)  95% CI [{lo*100:.0f}%, {hi*100:.0f}%]")
+    print(f"waypoints reached: {wp_reached}/{trials*len(MISSION)} (each within the {25} cm goal gate) · min-up {np.mean(ups):.2f}")
+    res = {"trials": trials, "waypoints": len(MISSION),
+           "mission_complete_rate": complete / trials, "complete_ci": [lo, hi],
+           "waypoints_reached": wp_reached, "arrival_precision_m": {"mean": em, "ci95": eci}}
+    if out_json:
+        try:
+            with open(out_json) as f:
+                base = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            base = {}
+        base["goto_mission"] = res
+        with open(out_json, "w") as f:
+            json.dump(base, f, indent=2)
+        print(f"updated {out_json} (goto_mission block)")
+    return res
+
+
 if __name__ == "__main__":
     evaluate(out_json="eval_results.json")
     ablation_terrain_feedback(out_json="eval_results.json")
     speed_tracking()
     speed_setpoint_tracking(out_json="eval_results.json")
+    goto_mission(out_json="eval_results.json")
     push_recovery(out_json="eval_results.json")
     payload_delivery(out_json="eval_results.json")
     noise_robustness(out_json="eval_results.json")

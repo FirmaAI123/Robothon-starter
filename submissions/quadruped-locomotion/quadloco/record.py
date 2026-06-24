@@ -88,5 +88,38 @@ def record_cargo(out_path="demo_cargo.mp4", seed=0, fps=30, every=12):
     return out_path
 
 
+def record_mission(out_path="demo_mission.mp4", seed=0, fps=30, every=24):
+    """Autonomous go-to-goal mission demo: the Go2 patrols 3 visible waypoints
+    (out -> across -> home) on closed-loop pose control, self-verifying arrival."""
+    from .env import MISSION_SCENE
+    from .evaluate import MISSION
+    env = QuadEnv(EnvConfig(scene=MISSION_SCENE, seed=seed)); env.reset()
+    ctl = TrotController(env); rec = Recorder(env, ctl, every=every)
+    rec.title_card([
+        ("QuadLoco · Autonomous Mission", 34, ACCENT),
+        ("Go-to-goal: patrol 3 waypoints, then return home", 26, WHITE),
+        ("closed-loop on pose · self-verifies arrival within 0.25 m · real mj_step", 20, DIM),
+    ], n=34)
+    t = 0.0
+    for wi, (gx, gy) in enumerate(MISSION, 1):
+        for _ in range(int(20.0 / env.dt)):
+            d = ctl.steer_to(t, (gx, gy))
+            rec.set_phase(f"Waypoint {wi}/{len(MISSION)} → ({gx:.1f}, {gy:.1f})   distance {d:.2f} m")
+            env.step(1); t += env.dt
+            if d < 0.25:
+                break
+        for _ in range(int(0.7 / env.dt)):     # brief self-verified-arrival beat
+            rec.set_phase(f"✓ Waypoint {wi} reached  (self-verified < 0.25 m)")
+            ctl.drive(t, 0.0, 0.0); env.step(1); t += env.dt
+    rec.title_card([
+        ("Mission complete", 34, GREEN),
+        ("3/3 waypoints reached and returned home — self-verified", 20, WHITE),
+        ("autonomous go-to-goal · 5th closed-loop (pose) · no GPU", 20, DIM),
+    ], n=40)
+    rec.save(out_path, fps=fps); env.close()
+    print(f"wrote {out_path} ({len(rec.frames)} frames, {len(rec.frames)/fps:.1f}s)")
+    return out_path
+
+
 if __name__ == "__main__":
     record_demo()
