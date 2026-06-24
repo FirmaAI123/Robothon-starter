@@ -108,6 +108,26 @@ def test_payload_delivery():
     assert r["min_up"] > 0.5, "robot fell while carrying cargo"
 
 
+def test_speed_setpoint_tracking():
+    """Closed-loop velocity tracking hits the commanded speed setpoint (velocimeter PI)."""
+    from quadloco.evaluate import speed_setpoint_tracking
+    res = speed_setpoint_tracking(targets=(0.2, 0.5), trials=2)
+    by = {r["target"]: r["achieved_mps"] for r in res}
+    assert abs(by[0.2] - 0.2) < 0.1, f"did not track 0.2 m/s ({by[0.2]:.2f})"
+    assert by[0.5] > by[0.2] + 0.15, "setpoint tracking not monotone"
+
+
+def test_robust_to_sensor_noise():
+    """The gait stays upright with realistic IMU/gyro noise on the sensors it reads."""
+    env = QuadEnv(EnvConfig(seed=0, randomize=True, mass_jitter=0.12, yaw_jitter=0.05,
+                            friction_jitter=0.2, sensor_noise=1.5))
+    env.reset(); ctl = TrotController(env); mu = 1.0
+    for i in range(int(8.0 / env.dt)):
+        ctl.drive(i * env.dt, 1.0, 0.0); env.step(1); mu = min(mu, env.upright())
+    assert env.base_height() > 0.15 and mu > 0.5, "fell under sensor noise"
+    env.close()
+
+
 def test_determinism():
     def run():
         e = QuadEnv(EnvConfig(seed=0)); e.reset(); c = TrotController(e)

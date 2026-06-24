@@ -126,5 +126,36 @@
     "max_slip_m": 0.07594622871694409,
     "laden_min_up_on": 0.895044501186273,
     "laden_min_up_off": 0.8405226423795449
+  },
+  "speed_setpoint_tracking": [
+    {
+      "target": 0.2,
+      "achieved_mps": 0.1980823047282517,
+      "achieved_ci95": 4.317746826421498e-05,
+      "min_upright": 0.9779608884049009
+    },
+    {
+      "target": 0.35,
+      "achieved_mps": 0.3475427497032604,
+      "achieved_ci95": 9.681479535044227e-05,
+      "min_upright": 0.9686629986824767
+    },
+    {
+      "target": 0.5,
+      "achieved_mps": 0.49891510858097216,
+      "achieved_ci95": 0.000598425662358629,
+      "min_upright": 0.9643651983604272
+    }
+  ],
+  "noise_robustness": {
+    "trials": 12,
+    "noise_scale": 1.5,
+    "upright_noisy": 1.0,
+    "upright_ci": [
+      0.7574992425007574,
+      1.0
+    ],
+    "drift_clean_m": 0.1540874743579748,
+    "drift_noisy_m": 0.12450933530887846
   }
 }

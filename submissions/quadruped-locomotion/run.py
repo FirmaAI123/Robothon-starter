@@ -41,14 +41,17 @@ def main(argv=None):
         return 0
 
     if mode == "eval":
-        from quadloco.evaluate import (evaluate, ablation_terrain_feedback,
-                                       speed_tracking, push_recovery, payload_delivery)
+        from quadloco.evaluate import (evaluate, ablation_terrain_feedback, speed_tracking,
+                                       speed_setpoint_tracking, push_recovery,
+                                       payload_delivery, noise_robustness)
         n = int(argv[1]) if len(argv) > 1 else 20
         evaluate(trials=n, out_json="eval_results.json")
         ablation_terrain_feedback(trials=n, out_json="eval_results.json")
         speed_tracking()
+        speed_setpoint_tracking(out_json="eval_results.json")
         push_recovery(out_json="eval_results.json")
         payload_delivery(out_json="eval_results.json")
+        noise_robustness(out_json="eval_results.json")
         return 0
 
     if mode == "figures":

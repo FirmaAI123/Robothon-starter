@@ -30,6 +30,7 @@ class EnvConfig:
     mass_jitter: float = 0.0      # fractional trunk-mass jitter
     yaw_jitter: float = 0.0       # rad of initial heading jitter
     friction_jitter: float = 0.0  # fractional ground-friction jitter
+    sensor_noise: float = 0.0     # IMU/gyro/velocimeter noise scale (real-world sensing)
     render_w: int = 1280
     render_h: int = 720
 
@@ -57,6 +58,7 @@ class QuadEnv:
         self._hooks: list = []
         self._push_force = np.zeros(3)
         self._push_steps = 0
+        self._noise_rng = np.random.default_rng(self.cfg.seed + 777)  # seeded sensor noise
         self._fill_heightfield(12345 if not self.cfg.randomize else self.cfg.seed)
         if self.cfg.randomize and self.cfg.friction_jitter > 0:
             self._randomize_friction()
@@ -226,10 +228,17 @@ class QuadEnv:
         return np.array([c[lg] for lg in LEGS])
 
     def get_obs(self) -> Dict:
+        quat = self._sensor("imu_quat"); gyro = self._sensor("imu_gyro")
+        acc = self._sensor("imu_acc"); vel = self._sensor("imu_vel")
+        if self.cfg.sensor_noise > 0:                # emulate real (noisy) proprioception
+            s = self.cfg.sensor_noise
+            quat = quat + self._noise_rng.normal(0, 0.01 * s, 4)   # ~1.1 deg @ s=1
+            quat = quat / (np.linalg.norm(quat) + 1e-9)
+            gyro = gyro + self._noise_rng.normal(0, 0.05 * s, 3)   # rad/s
+            vel = vel + self._noise_rng.normal(0, 0.03 * s, 3)     # m/s
         return {
             "joint_pos": self.joint_pos, "joint_vel": self.joint_vel,
-            "imu_quat": self._sensor("imu_quat"), "gyro": self._sensor("imu_gyro"),
-            "acc": self._sensor("imu_acc"), "vel": self._sensor("imu_vel"),
+            "imu_quat": quat, "gyro": gyro, "acc": acc, "vel": vel,
             "base_pos": self._sensor("base_pos"), "foot_contacts": self.foot_contacts(),
             "height": self.base_height(), "heading": self.heading(),
             "upright": self.upright(), "time": float(self.data.time),

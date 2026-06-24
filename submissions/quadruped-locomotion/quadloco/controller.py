@@ -44,6 +44,7 @@ class TrotController:
         self.env = env
         self.p = params or GaitParams()
         self._target_heading = None
+        self._v_integ = 0.0        # body-velocity loop integral state
         self.terrain_fb = True     # closed-loop terrain feedback (set False to ablate)
 
     def joint_targets(self, t: float, forward: float = 1.0, turn: float = 0.0) -> np.ndarray:
@@ -124,6 +125,18 @@ class TrotController:
         else:
             turn = 0.0
         self.act(t, forward, turn)
+
+    # ---- closed-loop body-velocity tracking (uses the velocimeter) ----
+    def track_speed(self, t: float, v_set: float, turn_cmd: float = 0.0,
+                    kp: float = 1.5, ki: float = 3.0):
+        """Outer velocity loop on top of the gait: read forward body speed from the
+        **velocimeter** and PI-control the gait's forward command so the robot tracks a
+        commanded speed setpoint (m/s) regardless of payload/terrain/friction — a fourth
+        closed-loop on a real sensor. Inner heading-hold + terrain-leveling still run."""
+        v = float(self.env.get_obs()["vel"][0])
+        self._v_integ = float(np.clip(self._v_integ + (v_set - v) * self.env.dt, -2.0, 2.0))
+        fcmd = float(np.clip(kp * (v_set - v) + ki * self._v_integ, 0.0, 2.5))
+        self.drive(t, fcmd, turn_cmd)
 
     # ---- gait phase (for HUD) ----
     def stance_swing(self, t: float):

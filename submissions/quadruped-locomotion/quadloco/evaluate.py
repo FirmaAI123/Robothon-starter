@@ -268,9 +268,82 @@ def payload_delivery(trials=10, out_json=None):
     return res
 
 
+def speed_setpoint_tracking(targets=(0.2, 0.35, 0.5), secs=8.0, trials=5, out_json=None):
+    """Closed-loop body-velocity tracking (4th loop, uses the velocimeter): command a
+    speed setpoint and report the achieved forward speed (mean ± 95% CI) — the gait's
+    forward command is PI-controlled on the measured velocity, so it tracks the setpoint
+    regardless of mass/friction, not just maps open-loop."""
+    print(f"\n=== Closed-loop speed tracking (velocimeter PI, flat, {trials} seeds) ===")
+    print(f"{'target':>8s}   achieved m/s        min-upright")
+    out = []
+    for vs in targets:
+        sp = []; ups = []
+        for s in range(trials):
+            env = QuadEnv(EnvConfig(scene=FLAT, seed=200 + s, randomize=True, **RANDOMIZE)); env.reset()
+            ctl = TrotController(env); mu = 1.0; vv = []
+            for i in range(int(secs / env.dt)):
+                ctl.track_speed(i * env.dt, vs); env.step(1); mu = min(mu, env.upright())
+                if i * env.dt > 3.0:
+                    vv.append(float(env.get_obs()["vel"][0]))
+            sp.append(float(np.mean(vv))); ups.append(mu); env.close()
+        m, ci = mean_ci(sp)
+        print(f"{vs:7.2f}    {m:.2f} ± {ci:.2f}          {np.mean(ups):.2f}")
+        out.append({"target": vs, "achieved_mps": m, "achieved_ci95": ci, "min_upright": float(np.mean(ups))})
+    if out_json:
+        try:
+            with open(out_json) as f:
+                base = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            base = {}
+        base["speed_setpoint_tracking"] = out
+        with open(out_json, "w") as f:
+            json.dump(base, f, indent=2)
+        print(f"updated {out_json} (speed_setpoint_tracking block)")
+    return out
+
+
+def noise_robustness(trials=12, secs=10.0, noise=1.5, out_json=None):
+    """Real-world sensing: re-run the terrain walk with realistic IMU/gyro/velocimeter
+    NOISE injected into every sensor the controller reads (≈1.7° orientation, 0.075 rad/s
+    gyro at this scale). Shows the closed loops hold under noisy proprioception."""
+    def go(nz):
+        up = 0; drifts = []
+        for s in range(trials):
+            env = QuadEnv(EnvConfig(seed=s, randomize=True, sensor_noise=nz, **RANDOMIZE)); env.reset()
+            ctl = TrotController(env); y0 = env.base_xy()[1]; mu = 1.0; fell = False
+            for i in range(int(secs / env.dt)):
+                ctl.drive(i * env.dt, 1.0, 0.0); env.step(1); mu = min(mu, env.upright())
+                if env.base_height() < 0.15:
+                    fell = True; break
+            up += (not fell and mu > 0.5); drifts.append(abs(env.base_xy()[1] - y0)); env.close()
+        return up, mean_ci(drifts)
+    up0, (d0, _) = go(0.0); upn, (dn, dnci) = go(noise)
+    lo, hi = wilson_ci(upn, trials)
+    print(f"\n=== Real-world sensor-noise robustness ({trials} trials, noise scale {noise}) ===")
+    print(f"{'noise OFF':14s} upright {up0}/{trials}   drift {d0:.2f} m")
+    print(f"{'noise ON':14s} upright {upn}/{trials}   drift {dn:.2f} ± {dnci:.2f} m  "
+          f"(95% CI [{lo*100:.0f}%, {hi*100:.0f}%])")
+    res = {"trials": trials, "noise_scale": noise,
+           "upright_noisy": upn / trials, "upright_ci": [lo, hi],
+           "drift_clean_m": d0, "drift_noisy_m": dn}
+    if out_json:
+        try:
+            with open(out_json) as f:
+                base = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            base = {}
+        base["noise_robustness"] = res
+        with open(out_json, "w") as f:
+            json.dump(base, f, indent=2)
+        print(f"updated {out_json} (noise_robustness block)")
+    return res
+
+
 if __name__ == "__main__":
     evaluate(out_json="eval_results.json")
     ablation_terrain_feedback(out_json="eval_results.json")
     speed_tracking()
+    speed_setpoint_tracking(out_json="eval_results.json")
     push_recovery(out_json="eval_results.json")
     payload_delivery(out_json="eval_results.json")
+    noise_robustness(out_json="eval_results.json")
